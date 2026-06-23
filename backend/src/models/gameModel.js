@@ -48,14 +48,18 @@ const GameModel = {
     return res.insertId;
   },
 
-  async getMinesSession(sessionId, userId) {
+ async getMinesSession(sessionId, userId) {
     const [rows] = await pool.query(
       `SELECT * FROM game_sessions WHERE id = ? AND user_id = ? AND game_type = 'mines' AND state = 'active'`,
       [sessionId, userId]
     );
     if (!rows.length) return null;
     const s = rows[0];
-    s.meta = JSON.parse(s.meta);
+    // A coluna "meta" (tipo JSON) pode vir já como objeto (MySQL real, ex:
+    // Aiven) ou como string (MariaDB, que trata JSON como TEXT). Só fazemos
+    // JSON.parse se realmente for uma string — caso contrário usamos
+    // diretamente, evitando o erro '"[object Object]" is not valid JSON'.
+    s.meta = typeof s.meta === 'string' ? JSON.parse(s.meta) : s.meta;
     return s;
   },
 
