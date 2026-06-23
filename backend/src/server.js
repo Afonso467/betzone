@@ -47,9 +47,16 @@ app.use((_, res) => res.status(404).json({ error: 'Rota não encontrada' }));
 app.use(errorHandler);
 
 async function start() {
-  await testConnection();
+  try {
+    await testConnection();
+    console.log('✅ MySQL ligado com sucesso');
+  } catch (err) {
+    console.error('❌ Erro MySQL:', err.message);
+  }
+
   app.listen(PORT, () => {
-    console.log(`🚀 NovaCrates API → http://localhost:${PORT}`);
+    console.log(`🚀 API a correr na porta ${PORT}`);
   });
 }
+
 start();
