@@ -15,7 +15,7 @@ async function seed() {
   await conn.query(`
     INSERT IGNORE INTO users (id, username, avatar, points, xp, xp_next, level, wins, losses, active, created_at)
     VALUES
-      (1, 'GamerPro',    '🎮', 18900,  3450,  5000,   12, 147, 63,  1, NOW()),
+      (1, 'GamerPro',    '🎮', 18900,  3450,  5000,   12, 147, 63,  1, NOW())
   `);
 
   // ── Skins para o Skin Market (preço agora em pontos via points_value) ────

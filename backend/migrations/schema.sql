@@ -1,8 +1,8 @@
 -- NovaCrates — Migrations completas
 -- Executar com: node migrations/run.js  ou  mysql -u root -p novacrates < migrations/schema.sql
 
-CREATE DATABASE IF NOT EXISTS novacrates CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE novacrates;
+CREATE DATABASE IF NOT EXISTS defaultdb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE defaultdb;
 
 -- ── Utilizadores (sem autenticação — apenas perfis de jogo) ──────────────────
 CREATE TABLE IF NOT EXISTS users (
