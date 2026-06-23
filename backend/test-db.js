@@ -6,21 +6,28 @@ const pool = mysql.createPool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-
   ssl: {
     rejectUnauthorized: false
-  }
+  },
+  connectTimeout: 10000
 });
 
-async function testConnection() {
+async function test() {
   try {
+    console.log("🔄 A tentar ligar ao MySQL...");
+
     const conn = await pool.getConnection();
-    console.log('✅ MySQL conectado com sucesso');
+
+    console.log("✅ CONNECTED OK");
     conn.release();
+
+    process.exit(0);
+
   } catch (err) {
-    console.error('❌ CONNECTION FAILED:', err);
+    console.error("❌ FULL ERROR:");
+    console.error(err);   // 👈 isto agora mostra TUDO
     process.exit(1);
   }
 }
 
-module.exports = { pool, testConnection };
+test();

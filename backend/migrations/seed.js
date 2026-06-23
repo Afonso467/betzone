@@ -16,13 +16,6 @@ async function seed() {
     INSERT IGNORE INTO users (id, username, avatar, points, xp, xp_next, level, wins, losses, active, created_at)
     VALUES
       (1, 'GamerPro',    '🎮', 18900,  3450,  5000,   12, 147, 63,  1, NOW()),
-      (2, 'ShadowKing',  '👑', 124500, 98400, 100000, 32, 892, 180, 1, NOW()),
-      (3, 'NightWolf',   '🐺', 108900, 87200, 90000,  30, 741, 210, 1, NOW()),
-      (4, 'CrystalAce',  '💎', 94300,  72100, 80000,  27, 628, 190, 1, NOW()),
-      (5, 'BladeRunner', '⚔️', 71500,  58900, 70000,  24, 498, 175, 1, NOW()),
-      (6, 'PhoenixFire', '🔥', 65100,  52300, 60000,  21, 445, 160, 1, NOW()),
-      (7, 'IronGhost',   '👻', 59400,  47800, 55000,  19, 412, 150, 1, NOW()),
-      (8, 'VoidWalker',  '🌀', 53800,  43200, 50000,  17, 378, 140, 1, NOW());
   `);
 
   // ── Skins para o Skin Market (preço agora em pontos via points_value) ────
