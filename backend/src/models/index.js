@@ -147,21 +147,25 @@ const NotificationModel = {
 // ── Leaderboard ──────────────────────────────────────────────────────────────
 const LeaderboardModel = {
   async getTop(limit = 50) {
+    // Evitamos RANK() OVER (...) — função de janela que pode não estar
+    // disponível em todas as versões/configurações de MySQL/MariaDB.
+    // Calculamos o rank manualmente em JS a partir da ordem da query.
     const [rows] = await pool.query(
-      `SELECT u.id, u.username, u.avatar, u.level, u.xp, u.points, u.wins,
-              RANK() OVER (ORDER BY u.xp DESC) AS rank
-       FROM users u WHERE u.active = 1
-       ORDER BY u.xp DESC LIMIT ?`,
+      `SELECT id, username, avatar, level, xp, points, wins
+       FROM users WHERE active = 1
+       ORDER BY xp DESC LIMIT ?`,
       [limit]
     );
-    return rows;
+    return rows.map((row, i) => ({ ...row, rank: i + 1 }));
   },
 
   async getUserRank(userId) {
+    // Conta quantos utilizadores têm XP estritamente maior — essa contagem
+    // + 1 é a posição (rank) do utilizador, sem precisar de window functions.
     const [rows] = await pool.query(
-      `SELECT rank FROM (
-         SELECT id, RANK() OVER (ORDER BY xp DESC) AS rank FROM users WHERE active = 1
-       ) r WHERE id = ?`,
+      `SELECT
+         (SELECT COUNT(*) FROM users WHERE active = 1 AND xp > target.xp) + 1 AS rank
+       FROM users target WHERE target.id = ?`,
       [userId]
     );
     return rows[0]?.rank || null;
