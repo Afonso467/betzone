@@ -12,7 +12,7 @@ Plataforma gaming premium com minigames, skin market, giveaways e sistema de apo
 ## Estrutura
 
 ```
-novacrates/
+betzone/
 ├── package.json       # scripts raiz — corre tudo com "npm run dev"
 ├── backend/            # API Express
 │   └── src/
