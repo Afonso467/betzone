@@ -291,20 +291,21 @@ export function CrashGame() {
 // ── BLACKJACK ─────────────────────────────────────────────────────────────────
 function PlayingCard({ card, faceDown }) {
   return (
-    <div
-      style={!faceDown ? { color: card?.red ? '#dc2626' : '#111827' } : {}}
+    <motion.div
+      initial={{ rotateY: 90, scale: 0.8 }}
+      animate={{ rotateY: 0, scale: 1 }}
       className={`w-14 h-20 rounded-lg flex items-center justify-center text-lg font-bold
-        border shadow-card flex-shrink-0
-        ${faceDown ? 'bg-gradient-to-br from-blue/40 to-purple/40 border-border2' : 'bg-white border-gray-200'}`}
+        border shadow-card -ml-2 first:ml-0 flex-shrink-0
+        ${faceDown ? 'bg-gradient-to-br from-blue/40 to-purple/40 border-border2' :
+          card?.red ? 'bg-white text-red border-gray-200' : 'bg-white text-gray-900 border-gray-200'}`}
     >
-      {faceDown ? '' : (card?.v && card?.s) ? `${card.v}${card.s}` : ''}
-    </div>
+      {faceDown ? '' : card ? `${card.v}${card.s}` : ''}
+    </motion.div>
   );
 }
 
 export function BlackjackGame() {
   const { refresh } = useGame();
-
   const [bet, setBet]   = useState(50);
   const [phase, setPhase] = useState('bet'); // bet | play | done
   const [playerHand, setPlayerHand] = useState([]);
@@ -369,7 +370,7 @@ export function BlackjackGame() {
               <p className="text-xs text-white/50 text-center mb-2">
                 DEALER {phase === 'done' ? `— ${handVal(dealerHand)}` : ''}
               </p>
-              <div className="flex justify-center gap-2">
+              <div className="flex justify-center">
                 {dealerHand.map((c, i) => (
                   <PlayingCard key={i} card={c} faceDown={i === 1 && phase === 'play'} />
                 ))}
@@ -378,7 +379,7 @@ export function BlackjackGame() {
             <div className="text-white/30 text-xs">• • •</div>
             <div className="w-full">
               <p className="text-xs text-white/50 text-center mb-2">JOGADOR — {handVal(playerHand)}</p>
-              <div className="flex justify-center gap-2">
+              <div className="flex justify-center">
                 {playerHand.map((c, i) => <PlayingCard key={i} card={c} />)}
               </div>
             </div>

@@ -19,7 +19,12 @@ const { errorHandler }   = require('./middleware/errorHandler');
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+// CORS_ORIGIN pode ser uma única URL ou várias separadas por vírgula
+// (ex: "http://localhost:5173,https://teu-user.github.io")
+const allowedOrigins = (process.env.CORS_ORIGIN || '*').split(',').map(s => s.trim());
+app.use(cors({
+  origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
+}));
 app.use(express.json());
 if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
 

@@ -11,6 +11,11 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
   timezone: '+00:00',
+  // O Aiven (e a maioria dos serviços de MySQL na cloud) exige SSL.
+  // Define DB_SSL=true no .env de produção para ativar.
+  // rejectUnauthorized:false porque o Aiven usa um certificado próprio
+  // que normalmente não está na lista de CAs confiáveis do Node por defeito.
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
 });
 
 // Testar conexão ao iniciar

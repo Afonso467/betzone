@@ -142,6 +142,10 @@ const blackjackDeal = asyncHandler(async (req, res) => {
   const deck = createShuffledDeck();
   const playerHand = [deck[0], deck[2]];
   const dealerHand = [deck[1], deck[3]];
+  // Enviamos a mão do dealer completa e real — é o FRONTEND que decide
+  // esconder visualmente a 2ª carta (faceDown) enquanto o jogo decorre.
+  // Esconder o valor aqui faria o backend perder essa carta para sempre,
+  // já que o cliente devolve este mesmo array nas ações seguintes (hit/stand).
   res.json({ playerHand, dealerHand, deck: deck.slice(4), betPoints, isBlackjack: handTotal(playerHand) === 21 });
 });
 
