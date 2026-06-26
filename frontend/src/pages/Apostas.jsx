@@ -97,7 +97,7 @@ function FixtureCard({ fixture, selection, onSelect }) {
               <button onClick={() => pick('home')}
                 className={`rounded-full py-3 px-2 flex items-center justify-center transition-all border-2
                   ${isSelected('home') ? 'border-orange bg-orange/10' : 'border-transparent bg-white/95 hover:bg-white'}`}>
-                <img src={fixture.homeLogo} alt="" className="w-7 h-7 object-contain rounded-full" />
+                <img src={fixture.homeLogo} alt="" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-7 h-7 object-contain rounded-full" />
               </button>
               <button onClick={() => pick('draw')}
                 className={`rounded-full py-3 px-2 flex items-center justify-center font-bold text-sm transition-all border-2
@@ -107,7 +107,7 @@ function FixtureCard({ fixture, selection, onSelect }) {
               <button onClick={() => pick('away')}
                 className={`rounded-full py-3 px-2 flex items-center justify-center transition-all border-2
                   ${isSelected('away') ? 'border-orange bg-orange/10' : 'border-transparent bg-white/95 hover:bg-white'}`}>
-                <img src={fixture.awayLogo} alt="" className="w-7 h-7 object-contain rounded-full" />
+                <img src={fixture.awayLogo} alt="" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-7 h-7 object-contain rounded-full" />
               </button>
             </div>
           </div>
