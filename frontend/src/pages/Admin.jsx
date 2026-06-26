@@ -95,9 +95,9 @@ function CreateFixtureForm({ onCreated }) {
 
         {(form.homeLogo || form.awayLogo) && (
           <div className="flex items-center justify-center gap-6 mb-4 p-3 bg-bg4 rounded-[10px]">
-            {form.homeLogo && <img src={form.homeLogo} alt="" className="w-12 h-12 object-contain rounded-full" onError={e => e.target.style.opacity = 0.2} />}
-            <span className="text-text3 text-xs font-bold">VS</span>
-            {form.awayLogo && <img src={form.awayLogo} alt="" className="w-12 h-12 object-contain rounded-full" onError={e => e.target.style.opacity = 0.2} />}
+           {form.homeLogo && <img src={form.homeLogo} alt="" className="w-12 h-12 object-contain rounded-full" onError={e => e.target.style.opacity = 0.2} />}
+          <span className="text-text3 text-xs font-bold">VS</span>
+          {form.awayLogo && <img src={form.awayLogo} alt="" className="w-12 h-12 object-contain rounded-full" onError={e => e.target.style.opacity = 0.2} />}
           </div>
         )}
 
@@ -166,7 +166,7 @@ function FixtureManageCard({ fixture, onChanged }) {
 
       <div className="flex items-center gap-3 mb-3">
         <div className="flex-1 text-center">
-          <img src={fixture.homeLogo} alt="" className="w-10 h-10 mx-auto mb-1 object-contain rounded-full" />
+          <img src={fixture.homeLogo} alt="" className="w-10 h-10 mx-auto mb-1 object-contain rounded-full" crossOrigin="anonymous" referrerPolicy="no-referrer"/>
           <div className="text-xs font-bold truncate">{fixture.home}</div>
         </div>
         <div className="text-center px-2">
@@ -175,7 +175,7 @@ function FixtureManageCard({ fixture, onChanged }) {
             : <span className="text-xs text-text3">{new Date(fixture.kickoffAt).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>}
         </div>
         <div className="flex-1 text-center">
-          <img src={fixture.awayLogo} alt="" className="w-10 h-10 mx-auto mb-1 object-contain rounded-full" />
+          <img src={fixture.awayLogo} alt="" className="w-10 h-10 mx-auto mb-1 object-contain rounded-full" crossOrigin="anonymous" referrerPolicy="no-referrer"/>
           <div className="text-xs font-bold truncate">{fixture.away}</div>
         </div>
       </div>
