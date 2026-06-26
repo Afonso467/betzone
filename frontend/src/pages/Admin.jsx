@@ -95,9 +95,9 @@ function CreateFixtureForm({ onCreated }) {
 
         {(form.homeLogo || form.awayLogo) && (
           <div className="flex items-center justify-center gap-6 mb-4 p-3 bg-bg4 rounded-[10px]">
-           {form.homeLogo && <img src={form.homeLogo} alt="" className="w-12 h-12 object-contain rounded-full" onError={e => e.target.style.opacity = 0.2} />}
+           {form.homeLogo && <img src={form.homeLogo} alt="" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-12 h-12 object-contain rounded-full" onError={e => e.target.style.opacity = 0.2} />}
           <span className="text-text3 text-xs font-bold">VS</span>
-          {form.awayLogo && <img src={form.awayLogo} alt="" className="w-12 h-12 object-contain rounded-full" onError={e => e.target.style.opacity = 0.2} />}
+          {form.awayLogo && <img src={form.awayLogo} alt="" crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-12 h-12 object-contain rounded-full" onError={e => e.target.style.opacity = 0.2} />}
           </div>
         )}
 
