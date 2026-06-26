@@ -79,7 +79,7 @@ function FixtureCard({ fixture, selection, onSelect }) {
           </div>
 
           <div className="flex-1 text-center">
-            <img src={fixture.awayLogo} alt={fixture.away} className="w-16 h-16 mx-auto mb-2 object-contain rounded-full border border-border2" />
+            <img src={fixture.awayLogo} alt={fixture.away} crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-16 h-16 mx-auto mb-2 object-contain rounded-full border border-border2" />
             <div className="font-bold text-sm">{fixture.away}</div>
           </div>
         </div>
