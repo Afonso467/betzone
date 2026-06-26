@@ -60,7 +60,7 @@ function FixtureCard({ fixture, selection, onSelect }) {
 
         <div className="flex items-center gap-4 mb-5">
           <div className="flex-1 text-center">
-            <img src={fixture.homeLogo} alt={fixture.home} className="w-16 h-16 mx-auto mb-2 object-contain rounded-full border border-border2" />
+           <img src={fixture.homeLogo} alt={fixture.home} crossOrigin="anonymous" referrerPolicy="no-referrer" className="w-16 h-16 mx-auto mb-2 object-contain rounded-full border border-border2" />
             <div className="font-bold text-sm">{fixture.home}</div>
           </div>
 
