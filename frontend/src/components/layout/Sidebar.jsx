@@ -110,9 +110,9 @@ export default function Sidebar({ collapsed, onToggle }) {
       {/* Toggle button */}
       <button
         onClick={onToggle}
-        className="absolute top-[18px] -right-3 w-6 h-6 bg-bg3 border border-border2 rounded-full
+        className="absolute top-[18px] right-2 w-6 h-6 bg-bg3 border border-border2 rounded-full
           flex items-center justify-center text-text2 hover:text-orange hover:border-orange
-          transition-colors z-10 shadow-card"
+          transition-colors z-50 shadow-card"
       >
         {collapsed
           ? <ChevronRight size={12} />

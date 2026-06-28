@@ -49,20 +49,19 @@ export default function Leaderboard() {
         </Card>
       ) : (
         <>
-          {/* Top 3 podium — só aparece se houver pelo menos 2 jogadores */}
-          {players.length > 1 && (
+          {/* Top 3 podium — só aparece com 3+ jogadores reais (evita coluna vazia) */}
+          {players.length >= 3 && (
             <div className="grid grid-cols-3 gap-3 mb-5">
               {[players[1], players[0], players[2]].map((p, i) => {
-                if (!p) return <div key={`podium-empty-${i}`} />;
-                const heights = ['h-24', 'h-32', 'h-20'];
+                const heights = ['h-28', 'h-36', 'h-24'];
                 return (
                   <motion.div key={`podium-${p.username}-${i}`}
                     initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
-                    <Card className={`text-center flex flex-col justify-end ${heights[i]} ${i === 1 ? 'border-orange/40' : ''}`}>
-                      <div className="text-2xl mb-1">{p.avatar}</div>
-                      <div className="text-xs font-bold truncate">{p.username}</div>
+                    <Card className={`text-center flex flex-col items-center justify-end gap-1 px-2 py-3 ${heights[i]} ${i === 1 ? 'border-orange/40' : ''}`}>
+                      <div className="text-xl">{['🥈','🥇','🥉'][i]}</div>
+                      <div className="text-2xl">{p.avatar}</div>
+                      <div className="text-xs font-bold truncate max-w-full px-1">{p.username}</div>
                       <div className="text-[10px] text-orange font-semibold">{formatNumber(p.xp)} XP</div>
-                      <div className="text-lg mt-0.5">{['🥈','🥇','🥉'][i]}</div>
                     </Card>
                   </motion.div>
                 );
