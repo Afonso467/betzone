@@ -57,12 +57,12 @@ export default function Leaderboard() {
                 return (
                   <motion.div key={`podium-${p.username}-${i}`}
                     initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
-                    <Card className={`text-center flex flex-col items-center justify-end gap-1 px-2 py-3 ${heights[i]} ${i === 1 ? 'border-orange/40' : ''}`}>
-                      <div className="text-xl">{['🥈','🥇','🥉'][i]}</div>
-                      <div className="text-2xl">{p.avatar}</div>
-                      <div className="text-xs font-bold truncate max-w-full px-1">{p.username}</div>
-                      <div className="text-[10px] text-orange font-semibold">{formatNumber(p.xp)} XP</div>
-                    </Card>
+                    <Card className={`text-center flex flex-col items-center justify-end gap-1 px-2 py-3 w-full ${heights[i]} ${i === 1 ? 'border-orange/40' : ''}`}>
+                    <div className="text-xl">{['🥈','🥇','🥉'][i]}</div>
+                    <div className="text-2xl">{p.avatar}</div>
+                    <div className="text-xs font-bold truncate w-full px-1" title={p.username}>{p.username}</div>
+                    <div className="text-[10px] text-orange font-semibold">{formatNumber(p.xp)} XP</div>
+                  </Card>
                   </motion.div>
                 );
               })}
