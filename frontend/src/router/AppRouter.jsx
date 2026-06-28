@@ -1,5 +1,10 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import Layout from '../components/layout/Layout';
+
+// Auth pages
+import Login    from '../pages/Login';
+import Register from '../pages/Register';
 
 // Pages
 import Dashboard   from '../pages/Dashboard';
@@ -14,11 +19,27 @@ import Admin       from '../pages/Admin';
 import { MinesPage, CoinflipPage, CrashPage, BlackjackPage, CasesPage } from '../pages/GamePages';
 import { Parcerias, Sobre } from '../pages/StaticPages';
 
-// Sem autenticação — todas as rotas estão diretamente acessíveis dentro do Layout
+// Bloqueia o acesso a rotas privadas se não houver sessão ativa
+function PrivateRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return null; // evita "flash" de redirect enquanto valida o token
+  return user ? children : <Navigate to="/login" replace />;
+}
+
+// Impede ver login/registo se já tiver sessão ativa
+function PublicOnlyRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  return user ? <Navigate to="/" replace /> : children;
+}
+
 export default function AppRouter() {
   return (
     <Routes>
-      <Route path="/" element={<Layout />}>
+      <Route path="/login"    element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+      <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
+
+      <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route index            element={<Dashboard />} />
         <Route path="profile"   element={<Profile />} />
         <Route path="minigames" element={<Minigames />} />

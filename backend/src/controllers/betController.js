@@ -3,8 +3,6 @@ const BetModel  = require('../models/betModel');
 const ManualFixtureModel = require('../models/manualFixtureModel');
 const { asyncHandler, createError } = require('../middleware/errorHandler');
 
-const DEMO_USER_ID = 1;
-
 // Converte uma linha de manual_fixtures para o formato usado no frontend
 function toFixtureDTO(f) {
   const now = new Date();
@@ -28,7 +26,7 @@ function toFixtureDTO(f) {
   };
 }
 
-// ── GET /api/sports/fixtures ─────────────────────────────────────────────────
+// ── GET /api/sports/fixtures (pública) ────────────────────────────────────────
 const getFixtures = asyncHandler(async (req, res) => {
   const fixtures = await ManualFixtureModel.getAll();
   res.json({ fixtures: fixtures.map(toFixtureDTO) });
@@ -36,6 +34,7 @@ const getFixtures = asyncHandler(async (req, res) => {
 
 // ── POST /api/bets/place ──────────────────────────────────────────────────────
 const placeBet = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
   const { stake, selections } = req.body;
 
   if (!Array.isArray(selections) || selections.length === 0) {
@@ -57,20 +56,20 @@ const placeBet = asyncHandler(async (req, res) => {
     }
   }
 
-  const user = await UserModel.findById(DEMO_USER_ID);
+  const user = await UserModel.findById(userId);
   if (user.points < stake) throw createError('Pontos insuficientes', 400);
 
   const combinedOdds = selections.reduce((acc, s) => acc * parseFloat(s.odds), 1);
   const potentialWin = Math.round(stake * combinedOdds);
 
-  await UserModel.adjustPoints(DEMO_USER_ID, -stake);
+  await UserModel.adjustPoints(userId, -stake);
 
   const slipId = await BetModel.createSlip({
-    userId: DEMO_USER_ID, stake, combinedOdds, potentialWin,
+    userId, stake, combinedOdds, potentialWin,
     selections: selections.map(s => ({ ...s, fixtureId: String(s.fixtureId) })),
   });
 
-  const updated = await UserModel.findById(DEMO_USER_ID);
+  const updated = await UserModel.findById(userId);
   res.status(201).json({
     message: selections.length > 1 ? 'Aposta múltipla colocada!' : 'Aposta colocada!',
     slipId, combinedOdds, potentialWin, points: updated.points,
@@ -80,7 +79,7 @@ const placeBet = asyncHandler(async (req, res) => {
 // ── GET /api/bets/mine ────────────────────────────────────────────────────────
 const getMyBets = asyncHandler(async (req, res) => {
   const status = req.query.status || null;
-  const slips = await BetModel.getUserSlips(DEMO_USER_ID, status);
+  const slips = await BetModel.getUserSlips(req.user.id, status);
   res.json({ slips });
 });
 

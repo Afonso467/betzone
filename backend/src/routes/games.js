@@ -2,8 +2,9 @@ const express = require('express');
 const r = express.Router();
 const { minesStart, minesReveal, minesCashout, coinflip, crashJoin, crashCashout, blackjackDeal, blackjackAction, caseOpen, getCasesWithItems, getUserState } = require('../controllers/gameController');
 const { gameLimiter } = require('../middleware/rateLimiter');
+const { authenticate } = require('../middleware/auth');
 
-r.use(gameLimiter);
+r.use(authenticate, gameLimiter);
 r.get('/state',               getUserState);
 r.post('/mines/start',        minesStart);
 r.post('/mines/reveal',       minesReveal);

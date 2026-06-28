@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, RefreshCw } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useGame } from '../../context/GameContext';
+import { Bell, RefreshCw, LogOut } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { useAuth } from '../../context/AuthContext';
 import { ProgressBar } from '../ui';
 import { formatNumber } from '../../utils/constants';
 
 export default function Navbar() {
-  const { user, refresh } = useGame();
+  const { user, refresh, logout } = useAuth();
   const navigate = useNavigate();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -15,6 +15,11 @@ export default function Navbar() {
     setRefreshing(true);
     await refresh();
     setTimeout(() => setRefreshing(false), 600);
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
 
   if (!user) return null;
@@ -60,6 +65,12 @@ export default function Navbar() {
         <div className="hidden sm:flex items-center bg-orange/10 border border-orange/20 text-orange text-xs font-bold px-2 py-0.5 rounded-full">
           {user.level}
         </div>
+      </button>
+
+      {/* Logout */}
+      <button onClick={handleLogout} title="Sair"
+        className="w-9 h-9 bg-bg3 border border-border rounded-[10px] flex items-center justify-center text-text2 hover:text-red hover:border-red transition-colors">
+        <LogOut size={15} />
       </button>
     </header>
   );

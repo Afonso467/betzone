@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useApi } from '../hooks/useApi';
-import { useGame } from '../context/GameContext';
+import { useGame } from '../context/AuthContext';
 import { Card, Badge, Spinner } from '../components/ui';
 import { formatNumber } from '../utils/constants';
 

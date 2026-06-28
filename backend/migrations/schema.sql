@@ -8,6 +8,8 @@ USE defaultdb;
 CREATE TABLE IF NOT EXISTS users (
   id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   username      VARCHAR(30)  NOT NULL UNIQUE,
+  email         VARCHAR(150) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
   avatar        VARCHAR(10)  DEFAULT '🎮',
   points        INT UNSIGNED  NOT NULL DEFAULT 500,
   xp            INT UNSIGNED  NOT NULL DEFAULT 0,
@@ -19,7 +21,8 @@ CREATE TABLE IF NOT EXISTS users (
   created_at    DATETIME NOT NULL,
   updated_at    DATETIME,
   INDEX idx_username (username),
-  INDEX idx_xp      (xp DESC)
+  INDEX idx_email     (email),
+  INDEX idx_xp        (xp DESC)
 ) ENGINE=InnoDB;
 
 -- ── Sessões de jogo (estado temporário — ex: Mines ativo) ────────────────────

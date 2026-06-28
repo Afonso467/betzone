@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { useGame } from '../context/GameContext';
+import { useAuth } from '../context/AuthContext';
 import { Card, Button, Input, Badge, ProgressBar, StatCard } from '../components/ui';
 import { formatPoints, formatNumber } from '../utils/constants';
 import { useApi } from '../hooks/useApi';
@@ -9,18 +9,45 @@ import api from '../utils/api';
 const AVATARS = ['🎮','🔥','💎','👑','⚔️','🐺','🦅','🌀','🎯','🏆','💥','🌟'];
 
 export default function Profile() {
-  const { user, refresh } = useGame();
-  const [editing, setEditing] = useState(false);
-  const [username, setUsername] = useState(user?.username || '');
-  const { data: invData }  = useApi('/store/inventory');
+  const { user, refresh } = useAuth();
+  const { data: invData }   = useApi('/store/inventory');
   const { data: stateData } = useApi('/games/state');
+
+  const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirm: '' });
+  const [pwLoading, setPwLoading] = useState(false);
 
   const history   = stateData?.history || [];
   const inventory = invData?.inventory || [];
 
-  const setAvatar = (av) => {
-    // Atualização local apenas (sem conta para persistir no servidor)
-    toast.success('Avatar atualizado!');
+  const setAvatar = async (av) => {
+    try {
+      await api.put('/users/profile', { avatar: av }).catch(() => {});
+      await refresh();
+      toast.success('Avatar atualizado!');
+    } catch (_) {
+      toast.error('Não foi possível atualizar o avatar');
+    }
+  };
+
+  const changePassword = async (e) => {
+    e.preventDefault();
+    if (pwForm.newPassword !== pwForm.confirm) {
+      toast.error('As passwords não coincidem');
+      return;
+    }
+    setPwLoading(true);
+    try {
+      await api.put('/auth/password', {
+        currentPassword: pwForm.currentPassword,
+        newPassword: pwForm.newPassword,
+      });
+      toast.success('Password alterada com sucesso!');
+      setPwForm({ currentPassword: '', newPassword: '', confirm: '' });
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Erro ao alterar password');
+    } finally {
+      setPwLoading(false);
+    }
   };
 
   if (!user) return null;
@@ -43,7 +70,7 @@ export default function Profile() {
             </div>
             <div className="pb-2 flex-1">
               <div className="text-xl font-extrabold">{user.username}</div>
-              <div className="text-text2 text-sm">Jogador desde sempre 🎮</div>
+              <div className="text-text2 text-sm">{user.email}</div>
             </div>
             <div className="pb-2">
               <span className="text-xs font-bold bg-orange/10 text-orange border border-orange/20 px-3 py-1 rounded-full">
@@ -130,6 +157,20 @@ export default function Profile() {
           }
         </Card>
       </div>
+
+      {/* Change password */}
+      <Card className="max-w-md">
+        <h3 className="font-bold mb-4">🔒 Alterar Password</h3>
+        <form onSubmit={changePassword}>
+          <Input label="Password Atual" type="password" value={pwForm.currentPassword}
+            onChange={e => setPwForm(f => ({ ...f, currentPassword: e.target.value }))} required />
+          <Input label="Nova Password" type="password" value={pwForm.newPassword} minLength={6}
+            onChange={e => setPwForm(f => ({ ...f, newPassword: e.target.value }))} required />
+          <Input label="Confirmar Nova Password" type="password" value={pwForm.confirm} minLength={6}
+            onChange={e => setPwForm(f => ({ ...f, confirm: e.target.value }))} required />
+          <Button type="submit" loading={pwLoading}>Alterar Password</Button>
+        </form>
+      </Card>
     </div>
   );
 }

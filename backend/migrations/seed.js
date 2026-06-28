@@ -1,5 +1,6 @@
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
-const mysql = require('mysql2/promise');
+const mysql  = require('mysql2/promise');
+const bcrypt = require('bcrypt');
 
 async function seed() {
   const conn = await mysql.createConnection({
@@ -11,12 +12,14 @@ async function seed() {
     multipleStatements: true,
   });
 
-  // ── Utilizadores de demonstração (moeda única: pontos) ────────────────────
-  await conn.query(`
-    INSERT IGNORE INTO users (id, username, avatar, points, xp, xp_next, level, wins, losses, active, created_at)
-    VALUES
-      (1, 'GamerPro',    '🎮', 18900,  3450,  5000,   12, 147, 63,  1, NOW())
-  `);
+  // ── Utilizador de demonstração (moeda única: pontos) ─────────────────────
+  // Login de teste: pro@example.com / pass123
+  const demoPasswordHash = await bcrypt.hash('pass123', 12);
+  await conn.query(
+    `INSERT IGNORE INTO users (id, username, email, password_hash, avatar, points, xp, xp_next, level, wins, losses, active, created_at)
+     VALUES (1, 'GamerPro', 'pro@example.com', ?, '🎮', 18900, 3450, 5000, 12, 147, 63, 1, NOW())`,
+    [demoPasswordHash]
+  );
 
   // ── Skins para o Skin Market (preço agora em pontos via points_value) ────
   await conn.query(`

@@ -121,29 +121,50 @@ NODE_ENV=development
 VITE_API_URL=http://localhost:3001/api
 ```
 
+## Autenticação (login e registo)
+
+A plataforma tem agora um sistema de contas real, multi-utilizador:
+
+- **Registo:** username (único), email (único) e password (mínimo 6 caracteres)
+- **Login:** email + password
+- Passwords nunca são guardadas em texto simples — são encriptadas com **bcrypt** antes de irem para a base de dados
+- A sessão é mantida com um **token JWT**, válido por `JWT_EXPIRES_IN` (definido no `.env`, por padrão 7 dias)
+- O token é enviado automaticamente em todos os pedidos autenticados (`Authorization: Bearer <token>`) e guardado no `localStorage` do browser
+- Cada utilizador tem o seu próprio saldo de pontos, XP, nível, inventário e histórico — totalmente independentes dos restantes
+
+Conta de demonstração criada pelo `npm run seed`:
+```
+Email: pro@example.com
+Password: pass123
+```
+
+⚠️ **Antes de publicar em produção**, muda obrigatoriamente o `JWT_SECRET` no `.env` para um valor longo e aleatório — nunca deixes o valor de exemplo.
+
+### Painel de administração (separado do login de utilizador)
+
+O painel `/admin` (gestão de jogos de apostas e resultados) continua a usar uma password fixa própria (`ADMIN_PASSWORD`), **não** o sistema de login de utilizadores — é uma camada de proteção diferente, pensada para uma única pessoa (o dono da plataforma), não para contas de jogadores.
+
 ## Sobre a economia de pontos (moeda única)
 
 A plataforma usa **apenas pontos** como moeda — não existe saldo monetário (€) nem qualquer sistema de pagamento. Todas as apostas, caixas e compras no Skin Market são feitas e pagas em pontos.
 
-O utilizador de demonstração começa com 18.900 pontos (definidos no seed). Ganha mais pontos jogando (Mines, Coinflip, Crash, Blackjack) ou abrindo caixas no Case Opening — onde o item recebido é puramente visual/cosmético (vai para o inventário), mas o valor real ganho são os pontos associados a esse item (`points_value`).
-
-## Sobre a remoção de autenticação
-
-Esta versão **não tem login, registo nem JWT**. Todas as ações (apostar, jogar, comprar skins, etc.) são feitas em nome de um utilizador de demonstração fixo (`id = 1`, username `GamerPro`), criado automaticamente pelo `npm run seed`.
-
-Isto é ideal para:
-- Demonstrações e testes rápidos
-- Portfólio / apresentação visual
-- Desenvolvimento local sem complexidade de sessões
-
-Se mais tarde quiseres reativar autenticação (JWT + bcrypt + rotas protegidas), a arquitetura modular do projeto torna fácil voltar a adicionar essa camada sem reescrever os jogos ou o frontend.
+Cada novo utilizador começa com 500 pontos (definido no registo). Ganha mais pontos jogando (Mines, Coinflip, Crash, Blackjack) ou abrindo caixas no Case Opening — onde o item recebido é puramente visual/cosmético (vai para o inventário), mas o valor real ganho são os pontos associados a esse item (`points_value`).
 
 ## API Endpoints
+
+### Autenticação
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| POST | /api/auth/register | Criar conta nova |
+| POST | /api/auth/login    | Entrar com email + password |
+| GET  | /api/auth/me        | Dados do utilizador autenticado |
+| PUT  | /api/auth/password  | Alterar password |
+| PUT  | /api/users/profile  | Alterar username/avatar |
 
 ### Jogos
 | Método | Rota | Descrição |
 |--------|------|-----------|
-| GET  | /api/games/state           | Saldo, XP, histórico do utilizador demo |
+| GET  | /api/games/state           | Pontos, XP, histórico do utilizador autenticado |
 | POST | /api/games/mines/start     | Iniciar partida Mines |
 | POST | /api/games/mines/reveal    | Revelar célula |
 | POST | /api/games/mines/cashout   | Cashout |
@@ -205,10 +226,13 @@ Em vez de depender de uma API de desporto externa (com limitações de plano gra
 
 ## Segurança e Jogo Justo
 
+- Passwords encriptadas com bcrypt (nunca guardadas em texto simples)
+- Sessões geridas por JWT, com expiração configurável
+- Rate limiting nas rotas de login/registo (protege contra brute-force)
 - RNG criptograficamente seguro (`crypto.randomBytes`) no servidor para todos os jogos
 - House edge configurável e transparente (Mines, Coinflip, Crash)
 - Rate limiting nas rotas de jogo (anti-abuse)
 - Todas as transações financeiras são auditadas na tabela `transactions`
-- Painel de admin protegido por password fixa (`ADMIN_PASSWORD`), nunca exposta no frontend
+- Painel de admin protegido por password fixa (`ADMIN_PASSWORD`), separada do login de utilizadores e nunca exposta no frontend
 - Resolução de apostas é atómica e determinística — cada seleção só é avaliada uma vez (estado `pending` → `won`/`lost`/`void`)
 

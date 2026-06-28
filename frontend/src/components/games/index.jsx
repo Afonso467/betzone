@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
-import { useGame } from '../../context/GameContext';
+import { useGame } from '../../context/AuthContext';
 import { Button, Card, Input, Select, Badge, Spinner } from '../ui';
 import { formatPoints, RARITY_COLORS, RARITY_BG } from '../../utils/constants';
 

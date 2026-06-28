@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useApi } from '../hooks/useApi';
-import { useGame } from '../context/GameContext';
+import { useGame } from '../context/AuthContext';
 import { Card, Badge, Button } from '../components/ui';
 import { timeLeft, formatPoints } from '../utils/constants';
 import api from '../utils/api';

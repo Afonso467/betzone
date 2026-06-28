@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { Search } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
-import { useGame } from '../context/GameContext';
+import { useGame } from '../context/AuthContext';
 import { Card, Badge, Button } from '../components/ui';
 import { formatPoints, RARITY_COLORS, RARITY_BG } from '../utils/constants';
 import api from '../utils/api';

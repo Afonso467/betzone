@@ -2,14 +2,14 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { GameProvider } from './context/GameContext';
+import { AuthProvider } from './context/AuthContext';
 import AppRouter from './router/AppRouter';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter basename={import.meta.env.BASE_URL}>
-      <GameProvider>
+      <AuthProvider>
         <AppRouter />
         <Toaster
           position="bottom-right"
@@ -27,7 +27,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             duration: 3000,
           }}
         />
-      </GameProvider>
+      </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

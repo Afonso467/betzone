@@ -6,6 +6,8 @@ const morgan     = require('morgan');
 const rateLimit  = require('express-rate-limit');
 
 const { testConnection } = require('./config/database');
+const authRoutes         = require('./routes/auth');
+const userRoutes         = require('./routes/users');
 const gameRoutes         = require('./routes/games');
 const skinRoutes         = require('./routes/skins');
 const giveawayRoutes     = require('./routes/giveaways');
@@ -33,6 +35,8 @@ app.use(rateLimit({ windowMs: 60 * 1000, max: 300,
   message: { error: 'Demasiados pedidos, aguarda um momento.' } }));
 
 // Rotas
+app.use('/api/auth',       authRoutes);
+app.use('/api/users',       userRoutes);
 app.use('/api/games',       gameRoutes);
 app.use('/api/skins',       skinRoutes);
 app.use('/api/giveaways',   giveawayRoutes);

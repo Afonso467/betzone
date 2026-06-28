@@ -1,21 +1,31 @@
 const { pool } = require('../config/database');
 
 const UserModel = {
-  // Criar utilizador novo (sem password — não há autenticação)
-  async create({ username, avatar = '🎮' }) {
+  // Criar utilizador novo com password já encriptada (bcrypt feito no controller)
+  async create({ username, email, passwordHash, avatar = '🎮' }) {
     const [result] = await pool.query(
-      `INSERT INTO users (username, avatar, points, xp, level, wins, losses, active, created_at)
-       VALUES (?, ?, 500, 0, 1, 0, 0, 1, NOW())`,
-      [username, avatar]
+      `INSERT INTO users (username, email, password_hash, avatar, points, xp, level, wins, losses, active, created_at)
+       VALUES (?, ?, ?, ?, 500, 0, 1, 0, 0, 1, NOW())`,
+      [username, email, passwordHash, avatar]
     );
     return result.insertId;
   },
 
+  // Versão pública (sem password_hash) — usada em quase todo o lado
   async findById(id) {
     const [rows] = await pool.query(
-      `SELECT id, username, avatar, points, xp, xp_next, level, wins, losses, active, created_at
+      `SELECT id, username, email, avatar, points, xp, xp_next, level, wins, losses, active, created_at
        FROM users WHERE id = ?`,
       [id]
+    );
+    return rows[0] || null;
+  },
+
+  // Versão completa (com password_hash) — só usada internamente no login
+  async findByEmailWithPassword(email) {
+    const [rows] = await pool.query(
+      'SELECT * FROM users WHERE email = ? AND active = 1',
+      [email]
     );
     return rows[0] || null;
   },
@@ -24,6 +34,14 @@ const UserModel = {
     const [rows] = await pool.query(
       'SELECT id FROM users WHERE username = ?',
       [username]
+    );
+    return rows[0] || null;
+  },
+
+  async findByEmail(email) {
+    const [rows] = await pool.query(
+      'SELECT id FROM users WHERE email = ?',
+      [email]
     );
     return rows[0] || null;
   },
@@ -40,6 +58,13 @@ const UserModel = {
     await pool.query(
       `UPDATE users SET ${updates.join(', ')}, updated_at = NOW() WHERE id = ?`,
       [...values, id]
+    );
+  },
+
+  async updatePassword(id, passwordHash) {
+    await pool.query(
+      'UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?',
+      [passwordHash, id]
     );
   },
 

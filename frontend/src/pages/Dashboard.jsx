@@ -1,4 +1,4 @@
-import { useGame } from '../context/GameContext';
+import { useGame } from '../context/AuthContext';
 import { Card, StatCard, ProgressBar, Badge } from '../components/ui';
 import { formatPoints, formatNumber } from '../utils/constants';
 import { useApi } from '../hooks/useApi';

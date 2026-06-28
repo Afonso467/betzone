@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { X, Trash2, Trophy } from 'lucide-react';
-import { useGame } from '../context/GameContext';
+import { useGame } from '../context/AuthContext';
 import { Card, Badge, Button, Spinner } from '../components/ui';
 import { formatPoints } from '../utils/constants';
 import api from '../utils/api';
