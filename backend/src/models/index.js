@@ -162,9 +162,10 @@ const LeaderboardModel = {
   async getUserRank(userId) {
     // Conta quantos utilizadores têm XP estritamente maior — essa contagem
     // + 1 é a posição (rank) do utilizador, sem precisar de window functions.
+    // "rank" é palavra reservada no MySQL — tem de ir entre crases (`rank`).
     const [rows] = await pool.query(
       `SELECT
-         (SELECT COUNT(*) FROM users WHERE active = 1 AND xp > target.xp) + 1 AS rank
+         (SELECT COUNT(*) FROM users WHERE active = 1 AND xp > target.xp) + 1 AS \`rank\`
        FROM users target WHERE target.id = ?`,
       [userId]
     );
