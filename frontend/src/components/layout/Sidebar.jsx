@@ -11,10 +11,10 @@ const MAIN_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard',    path: '/' },
   { icon: User,            label: 'Meu Perfil',   path: '/profile' },
   { icon: Handshake,       label: 'Parcerias',    path: '/parcerias' },
-  { icon: Info,            label: 'Sobre',        path: '/sobre' },
+  /*{ icon: Info,            label: 'Sobre',        path: '/sobre' },*/
   { icon: Gift,            label: 'Giveaways',    path: '/giveaways' },
-  { icon: ShoppingBag,     label: 'Skin Market',  path: '/market' },
-  { icon: Store,           label: 'Loja',         path: '/loja' },
+  /*{ icon: ShoppingBag,     label: 'Skin Market',  path: '/market' },*/
+  /*{ icon: Store,           label: 'Loja',         path: '/loja' },*/
   { icon: Trophy,          label: 'Classificação',path: '/leaderboard' },
 ];
 
@@ -28,12 +28,12 @@ const GAME_ITEMS = [
   { icon: Club,               label: 'Blackjack',    path: '/blackjack' },
 ];
 
-const SOCIAL_ITEMS = [
+/*const SOCIAL_ITEMS = [
   { icon: Instagram,      label: 'Instagram', href: 'https://instagram.com' },
   { icon: Youtube,        label: 'Youtube',   href: 'https://youtube.com'  },
   { icon: Tv2,            label: 'Twitch',    href: 'https://twitch.tv'    },
   { icon: MessageCircle,  label: 'Discord',   href: 'https://discord.com'  },
-];
+];*/
 
 export default function Sidebar({ collapsed, onToggle }) {
   const navigate  = useNavigate();
