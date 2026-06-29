@@ -55,9 +55,9 @@ export default function Leaderboard() {
               {[players[1], players[0], players[2]].map((p, i) => {
                 const heights = ['h-28', 'h-36', 'h-24'];
                 return (
-                  <motion.div key={`podium-${p.username}-${i}`}
+                  <motion.div key={`podium-${p.username}-${i}`} className="w-full min-w-0"
                     initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
-                    <Card className={`text-center flex flex-col items-center justify-end gap-1 px-2 py-3 w-full ${heights[i]} ${i === 1 ? 'border-orange/40' : ''}`}>
+                    <Card className={`text-center flex flex-col items-center justify-end gap-1 px-2 py-3 w-full min-w-0 ${heights[i]} ${i === 1 ? 'border-orange/40' : ''}`}>
                     <div className="text-xl">{['🥈','🥇','🥉'][i]}</div>
                     <div className="text-2xl">{p.avatar}</div>
                     <div className="text-xs font-bold truncate w-full px-1" title={p.username}>{p.username}</div>
