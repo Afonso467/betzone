@@ -126,8 +126,8 @@ export default function Sidebar({ collapsed, onToggle }) {
         <SectionLabel>Minigames</SectionLabel>
         {GAME_ITEMS.map(item => <NavItem key={item.path} {...item} />)}
 
-        <SectionLabel>Redes Sociais</SectionLabel>
-        {SOCIAL_ITEMS.map(item => <NavItem key={item.label} {...item} />)}
+        {/*<SectionLabel>Redes Sociais</SectionLabel>
+        {SOCIAL_ITEMS.map(item => <NavItem key={item.label} {...item} />)}*/}
 
         {/* Acesso de administrador — discreto, protegido por password no backend */}
         <div className="mt-3 pt-3 border-t border-border">
