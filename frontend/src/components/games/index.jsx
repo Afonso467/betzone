@@ -291,16 +291,14 @@ export function CrashGame() {
 // ── BLACKJACK ─────────────────────────────────────────────────────────────────
 function PlayingCard({ card, faceDown }) {
   return (
-    <motion.div
-      initial={{ rotateY: 90, scale: 0.8 }}
-      animate={{ rotateY: 0, scale: 1 }}
+    <div
+      style={!faceDown ? { color: card?.red ? '#dc2626' : '#111827' } : {}}
       className={`w-14 h-20 rounded-lg flex items-center justify-center text-lg font-bold
-        border shadow-card -ml-2 first:ml-0 flex-shrink-0
-        ${faceDown ? 'bg-gradient-to-br from-blue/40 to-purple/40 border-border2' :
-          card?.red ? 'bg-white text-red border-gray-200' : 'bg-white text-gray-900 border-gray-200'}`}
+        border shadow-card flex-shrink-0
+        ${faceDown ? 'bg-gradient-to-br from-blue/40 to-purple/40 border-border2' : 'bg-white border-gray-200'}`}
     >
-      {faceDown ? '' : card ? `${card.v}${card.s}` : ''}
-    </motion.div>
+      {faceDown ? '' : (card?.v && card?.s) ? `${card.v}${card.s}` : ''}
+    </div>
   );
 }
 
