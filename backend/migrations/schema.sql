@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
   wins          INT UNSIGNED  NOT NULL DEFAULT 0,
   losses        INT UNSIGNED  NOT NULL DEFAULT 0,
   active        TINYINT(1)    NOT NULL DEFAULT 1,
+  last_claim_at DATETIME,
   created_at    DATETIME NOT NULL,
   updated_at    DATETIME,
   INDEX idx_username (username),

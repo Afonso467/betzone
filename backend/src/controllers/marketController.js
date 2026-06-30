@@ -48,6 +48,38 @@ const getCases = asyncHandler(async (req, res) => {
   res.json({ cases });
 });
 
+// ── Resgate de pontos grátis (a cada 5 minutos) ───────────────────────────────
+const CLAIM_AMOUNT  = 500;
+const CLAIM_COOLDOWN_MINUTES = 5;
+
+// Calcula quanto tempo falta (em segundos) para o próximo resgate.
+// 0 = já pode resgatar agora.
+function secondsUntilNextClaim(lastClaimAt) {
+  if (!lastClaimAt) return 0;
+  const nextClaim = new Date(lastClaimAt).getTime() + CLAIM_COOLDOWN_MINUTES * 60 * 1000;
+  const remaining = Math.ceil((nextClaim - Date.now()) / 1000);
+  return Math.max(0, remaining);
+}
+
+// ── GET /api/giveaways/claim-status ───────────────────────────────────────────
+const getClaimStatus = asyncHandler(async (req, res) => {
+  const user = await UserModel.findById(req.user.id);
+  const secondsLeft = secondsUntilNextClaim(user.last_claim_at);
+  res.json({ available: secondsLeft === 0, secondsLeft, amount: CLAIM_AMOUNT, cooldownMinutes: CLAIM_COOLDOWN_MINUTES });
+});
+
+// ── POST /api/giveaways/claim ─────────────────────────────────────────────────
+const claimFreePoints = asyncHandler(async (req, res) => {
+  const claimed = await UserModel.claimFreePoints(req.user.id, CLAIM_AMOUNT, CLAIM_COOLDOWN_MINUTES);
+  if (!claimed) {
+    const user = await UserModel.findById(req.user.id);
+    const secondsLeft = secondsUntilNextClaim(user.last_claim_at);
+    throw createError(`Ainda faltam ${Math.ceil(secondsLeft / 60)} min para o próximo resgate`, 400);
+  }
+  const updated = await UserModel.findById(req.user.id);
+  res.json({ message: `+${CLAIM_AMOUNT} pontos resgatados! 🎁`, amount: CLAIM_AMOUNT, points: updated.points });
+});
+
 const getGiveaways = asyncHandler(async (req, res) => {
   const giveaways = await GiveawayModel.getActive();
   const userId = req.user?.id;
@@ -91,4 +123,4 @@ const getStoreItems = asyncHandler(async (req, res) => {
   res.json({ cases });
 });
 
-module.exports = { getSkins, getSkin, buySkin, sellSkin, getCases, getGiveaways, enterGiveaway, getLeaderboard, getInventory, getStoreItems };
+module.exports = { getSkins, getSkin, buySkin, sellSkin, getCases, getGiveaways, enterGiveaway, getLeaderboard, getInventory, getStoreItems, claimFreePoints, getClaimStatus };

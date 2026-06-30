@@ -14,7 +14,7 @@ const UserModel = {
   // Versão pública (sem password_hash) — usada em quase todo o lado
   async findById(id) {
     const [rows] = await pool.query(
-      `SELECT id, username, email, avatar, points, xp, xp_next, level, wins, losses, active, created_at
+      `SELECT id, username, email, avatar, points, xp, xp_next, level, wins, losses, active, last_claim_at, created_at
        FROM users WHERE id = ?`,
       [id]
     );
@@ -80,6 +80,20 @@ const UserModel = {
       err.status = 400;
       throw err;
     }
+  },
+
+  // Resgate de pontos grátis a cada X minutos. Tudo numa única query atómica
+  // (UPDATE condicional) — evita que um duplo-clique ou dois pedidos em
+  // paralelo consigam resgatar duas vezes antes de "last_claim_at" gravar.
+  async claimFreePoints(id, amount, cooldownMinutes) {
+    const [result] = await pool.query(
+      `UPDATE users
+       SET points = points + ?, last_claim_at = NOW(), updated_at = NOW()
+       WHERE id = ?
+         AND (last_claim_at IS NULL OR last_claim_at <= NOW() - INTERVAL ? MINUTE)`,
+      [amount, id, cooldownMinutes]
+    );
+    return result.affectedRows > 0; // false = ainda estava em cooldown
   },
 
   // Adicionar XP e calcular nível automaticamente
