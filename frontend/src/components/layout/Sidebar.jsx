@@ -10,11 +10,11 @@ import {
 const MAIN_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard',    path: '/' },
   { icon: User,            label: 'Meu Perfil',   path: '/profile' },
-  {/* Logo{ icon: Handshake,       label: 'Parcerias',    path: '/parcerias' }, */},
-  {/* Logo{ icon: Info,            label: 'Sobre',        path: '/sobre' },*/},
+  { icon: Handshake,       label: 'Parcerias',    path: '/parcerias' },
+  { icon: Info,            label: 'Sobre',        path: '/sobre' },
   { icon: Gift,            label: 'Giveaways',    path: '/giveaways' },
   { icon: ShoppingBag,     label: 'Skin Market',  path: '/market' },
- {/* Logo { icon: Store,           label: 'Loja',         path: '/loja' },*/},
+ { icon: Store,           label: 'Loja',         path: '/loja' },
   { icon: Trophy,          label: 'Classificação',path: '/leaderboard' },
 ];
 
