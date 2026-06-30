@@ -592,14 +592,19 @@ function numberColor(n) {
 }
 const COLOR_HEX = { red: '#dc2626', black: '#18181b', green: '#16a34a' };
 
+
+// Ordem real dos números na roda física europeia (não é sequencial 0-36!)
+const WHEEL_ORDER = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
+
 export function RouletteGame() {
   const { refresh } = useGame();
-  // bets = { 'color:red': amount, 'number:17': amount, 'parity:even': amount }
+  // bets = { 'color:red': amount, 'number:17': amount, 'parity:even': amount, 'dozen:1': amount, 'half:low': amount }
   const [bets, setBets] = useState({});
   const [betInput, setBetInput] = useState(20);
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState(null);
   const [rotation, setRotation] = useState(0);
+  const [ballAngle, setBallAngle] = useState(0);
 
   const totalStake = Object.values(bets).reduce((a, b) => a + b, 0);
 
@@ -620,23 +625,29 @@ export function RouletteGame() {
     });
   };
 
+  // Converte o dicionário local de apostas (chave "tipo:valor") no formato
+  // de array que o backend espera.
+  function buildBetsPayload() {
+    return Object.entries(bets).map(([key, amount]) => {
+      const [type, value] = key.split(':');
+      return { type, value: type === 'number' ? Number(value) : value, amount };
+    });
+  }
+
   const spin = async () => {
-    if (!Object.keys(bets).length) return toast.error('Faz pelo menos uma aposta');
+    const serverBets = buildBetsPayload();
+    if (!serverBets.length) return toast.error('Faz pelo menos uma aposta');
     setSpinning(true);
     setResult(null);
     try {
-      const payload = {
-        bets: Object.entries(bets).map(([key, amount]) => {
-          const [type, value] = key.split(':');
-          return { type, value: type === 'number' ? Number(value) : value, amount };
-        }),
-      };
-      const { data } = await api.post('/games/roulette', payload);
+      const { data } = await api.post('/games/roulette', { bets: serverBets });
 
-      // Animação: gira várias voltas + posição final do número sorteado
+      const idx = WHEEL_ORDER.indexOf(data.winningNumber);
       const segAngle = 360 / 37;
-      const targetAngle = 360 * 4 + (data.winningNumber * segAngle);
-      setRotation(r => r + targetAngle);
+      const targetWheel = 360 * 5 + (idx * segAngle);
+      const targetBall = -(360 * 7) - (idx * segAngle);
+      setRotation(r => r + targetWheel);
+      setBallAngle(b => b + targetBall);
 
       setTimeout(() => {
         setSpinning(false);
@@ -645,7 +656,7 @@ export function RouletteGame() {
         refresh();
         if (data.totalWon > 0) toast.success(`🎉 Número ${data.winningNumber}! +${formatPoints(data.totalWon)}`);
         else toast.error(`😢 Saiu o ${data.winningNumber} (${data.winningColor})`);
-      }, 3200);
+      }, 4200);
     } catch (err) {
       setSpinning(false);
       toast.error(err.response?.data?.error || err.message);
@@ -653,172 +664,267 @@ export function RouletteGame() {
   };
 
   const numbers = Array.from({ length: 37 }, (_, i) => i);
+  const segAngle = 360 / 37;
+
+  // Grelha 3x12 estilo mesa real: linhas de baixo (1,4,7...) para cima (3,6,9...)
+  const ROWS = [
+    [3,6,9,12,15,18,21,24,27,30,33,36],
+    [2,5,8,11,14,17,20,23,26,29,32,35],
+    [1,4,7,10,13,16,19,22,25,28,31,34],
+  ];
 
   return (
-    <div className="max-w-3xl mx-auto">
-      {/* Roda */}
-      <Card className="text-center mb-4 overflow-hidden">
-        <div className="relative w-48 h-48 mx-auto mb-4 flex items-center justify-center">
-          <motion.div
-            className="absolute inset-0 rounded-full border-8 border-bg4"
-            style={{
-              background: `conic-gradient(${numbers.map((n, i) =>
-                `${COLOR_HEX[numberColor(n)]} ${i * (360/37)}deg ${(i+1) * (360/37)}deg`
-              ).join(',')})`,
-            }}
-            animate={{ rotate: rotation }}
-            transition={{ duration: 3, ease: [0.2, 0.8, 0.3, 1] }}
-          />
-          <div className="absolute w-16 h-16 bg-bg3 rounded-full border-4 border-border2 flex items-center justify-center z-10">
-            {result && !spinning ? (
-              <span className="text-xl font-black" style={{ color: COLOR_HEX[result.winningColor] === '#18181b' ? '#fff' : COLOR_HEX[result.winningColor] }}>
-                {result.winningNumber}
-              </span>
-            ) : <span className="text-2xl">🎡</span>}
-          </div>
-          {/* Seta indicadora */}
-          <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-0 h-0 z-20"
-            style={{ borderLeft: '8px solid transparent', borderRight: '8px solid transparent', borderTop: '14px solid var(--orange)' }} />
-        </div>
+    <div className="max-w-6xl mx-auto">
+      <div className="grid grid-cols-1 xl:grid-cols-[460px_1fr] gap-5">
 
-        {result && !spinning && (
-          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-2">
-            <Badge color={result.totalWon > 0 ? 'green' : 'red'}>
-              {result.totalWon > 0 ? `🎉 Ganhastes ${formatPoints(result.totalWon)}!` : '😢 Sem sorte desta vez'}
-            </Badge>
-          </motion.div>
-        )}
+        {/* ── COLUNA ESQUERDA: roda + ficha + botão girar ── */}
+        <div>
+          <Card className="text-center overflow-visible" style={{ background: 'radial-gradient(circle at 50% 30%, #2a1530, #150a18)' }}>
+            <div className="relative w-full aspect-square max-w-[400px] mx-auto mb-4 flex items-center justify-center">
 
-        <Button onClick={spin} loading={spinning} disabled={!Object.keys(bets).length} className="w-full py-3 max-w-xs mx-auto">
-          {spinning ? 'A girar...' : `🎡 Girar — ${formatPoints(totalStake)}`}
-        </Button>
-      </Card>
+              {/* Aro exterior dourado/castanho (bisel) */}
+              <div className="absolute inset-0 rounded-full"
+                style={{
+                  background: 'conic-gradient(from 0deg, #3d2410, #6b4423, #3d2410, #6b4423, #3d2410)',
+                  boxShadow: '0 0 0 4px #1a0f08, 0 12px 40px rgba(0,0,0,.6), inset 0 0 30px rgba(0,0,0,.5)',
+                }}
+              />
 
-      {/* Valor da ficha de aposta */}
-      <Card className="mb-4">
-        <div className="flex items-center gap-3">
-          <label className="text-xs font-medium text-text2 flex-shrink-0">💎 Valor por ficha</label>
-          <input type="number" min="1" step="1" value={betInput} disabled={spinning}
-            onChange={e => setBetInput(Math.max(1, +e.target.value))}
-            className="flex-1 bg-bg3 border border-border2 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none focus:border-orange" />
-          {[10, 50, 100, 500].map(v => (
-            <button key={v} disabled={spinning} onClick={() => setBetInput(v)}
-              className="px-2.5 py-2 rounded-lg bg-bg4 border border-border text-xs font-semibold hover:border-orange transition-colors disabled:opacity-40">
-              {v}
-            </button>
-          ))}
-        </div>
-      </Card>
-
-      {/* Mesa de apostas */}
-      <Card className="mb-4">
-        <h3 className="font-bold text-sm mb-3">🎯 Mesa de Apostas — clica para apostar</h3>
-
-        {/* Números 0-36 */}
-        <div className="grid grid-cols-9 sm:grid-cols-12 gap-1.5 mb-3">
-          {numbers.map(n => {
-            const key = `number:${n}`;
-            const has = bets[key];
-            const color = numberColor(n);
-            return (
-              <button key={n} disabled={spinning} onClick={() => addBet('number', n)}
-                className={`relative aspect-square rounded-lg text-xs font-bold flex items-center justify-center
-                  transition-all disabled:opacity-50 border-2
-                  ${has ? 'border-orange scale-95' : 'border-transparent hover:scale-105'}`}
-                style={{ background: COLOR_HEX[color], color: color === 'black' ? '#fff' : '#fff' }}>
-                {n}
-                {has && <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-orange text-black text-[9px] font-black rounded-full flex items-center justify-center">{has}</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Cor */}
-        <div className="grid grid-cols-3 gap-2 mb-2">
-          {['red', 'black', 'green'].map(c => {
-            const key = `color:${c}`;
-            const has = bets[key];
-            return (
-              <button key={c} disabled={spinning} onClick={() => addBet('color', c)}
-                className={`relative py-3 rounded-[10px] font-bold text-sm border-2 transition-all disabled:opacity-50
-                  ${has ? 'border-orange' : 'border-border2 hover:border-border'}`}
-                style={{ background: COLOR_HEX[c], color: '#fff' }}>
-                {c === 'red' ? 'Vermelho' : c === 'black' ? 'Preto' : 'Verde (0)'} {c !== 'green' ? '2x' : '35x'}
-                {has && <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-orange text-black text-[10px] font-black rounded-full flex items-center justify-center">{has}</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Par / Ímpar */}
-        <div className="grid grid-cols-2 gap-2">
-          {['even', 'odd'].map(p => {
-            const key = `parity:${p}`;
-            const has = bets[key];
-            return (
-              <button key={p} disabled={spinning} onClick={() => addBet('parity', p)}
-                className={`relative py-3 rounded-[10px] font-bold text-sm border-2 transition-all disabled:opacity-50
-                  bg-bg4 ${has ? 'border-orange text-orange' : 'border-border2 text-text2 hover:border-border'}`}>
-                {p === 'even' ? 'Par' : 'Ímpar'} 2x
-                {has && <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-orange text-black text-[10px] font-black rounded-full flex items-center justify-center">{has}</span>}
-              </button>
-            );
-          })}
-        </div>
-      </Card>
-
-      {/* Apostas atuais */}
-      {Object.keys(bets).length > 0 && (
-        <Card>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-bold text-sm">🎫 As tuas apostas</h3>
-            <button onClick={clearBets} disabled={spinning} className="text-xs text-text3 hover:text-red transition-colors disabled:opacity-40">
-              Limpar tudo
-            </button>
-          </div>
-          <div className="space-y-1.5">
-            {Object.entries(bets).map(([key, amount]) => {
-              const [type, value] = key.split(':');
-              const label = type === 'color' ? (value === 'red' ? 'Vermelho' : value === 'black' ? 'Preto' : 'Verde') :
-                            type === 'parity' ? (value === 'even' ? 'Par' : 'Ímpar') : `Número ${value}`;
-              return (
-                <div key={key} className="flex items-center justify-between bg-bg4 rounded-lg px-3 py-1.5 text-xs">
-                  <span className="text-text2">{label}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-orange">{formatPoints(amount)}</span>
-                    <button onClick={() => removeBet(key)} disabled={spinning} className="text-text3 hover:text-red transition-colors disabled:opacity-40">✕</button>
+              {/* Roda giratória com os 37 segmentos na ordem física real */}
+              <motion.div
+                className="absolute rounded-full"
+                style={{
+                  inset: '6%',
+                  background: `conic-gradient(${WHEEL_ORDER.map((n, i) =>
+                    `${COLOR_HEX[numberColor(n)]} ${i * segAngle}deg ${(i + 1) * segAngle}deg`
+                  ).join(',')})`,
+                  boxShadow: 'inset 0 0 20px rgba(0,0,0,.6), 0 0 0 3px #d4af37',
+                }}
+                animate={{ rotate: rotation }}
+                transition={{ duration: 4, ease: [0.15, 0.85, 0.25, 1] }}
+              >
+                {/* Números sobre cada segmento */}
+                {WHEEL_ORDER.map((n, i) => (
+                  <div key={n} className="absolute inset-0 flex justify-center"
+                    style={{ transform: `rotate(${i * segAngle + segAngle / 2}deg)` }}>
+                    <span className="text-white font-bold select-none" style={{ fontSize: '0.6rem', marginTop: '3%' }}>{n}</span>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-border text-sm font-bold">
-            <span>Total apostado</span>
-            <span className="text-orange">{formatPoints(totalStake)}</span>
-          </div>
-        </Card>
-      )}
+                ))}
+              </motion.div>
 
-      {/* Resultados detalhados da última jogada */}
-      {result && !spinning && (
-        <Card className="mt-4">
-          <h3 className="font-bold text-sm mb-2">📋 Resultado: número {result.winningNumber} ({result.winningColor})</h3>
-          <div className="space-y-1.5">
-            {result.results.map((r, i) => (
-              <div key={i} className="flex items-center justify-between text-xs">
-                <span className="text-text2">
-                  {r.type === 'color' ? (r.value === 'red' ? 'Vermelho' : r.value === 'black' ? 'Preto' : 'Verde') :
-                   r.type === 'parity' ? (r.value === 'even' ? 'Par' : 'Ímpar') : `Número ${r.value}`}
-                  {' — '}{formatPoints(r.amount)}
-                </span>
-                <Badge color={r.won ? 'green' : 'red'}>
-                  {r.won ? `✅ +${formatPoints(r.winAmount)}` : '❌'}
-                </Badge>
+              {/* Bola */}
+              <motion.div
+                className="absolute"
+                style={{ inset: 0 }}
+                animate={{ rotate: ballAngle }}
+                transition={{ duration: 4, ease: [0.1, 0.7, 0.2, 1] }}
+              >
+                <div className="absolute left-1/2 -translate-x-1/2 w-3 h-3 rounded-full"
+                  style={{ top: '3%', background: 'radial-gradient(circle at 35% 30%, #fff, #ccc)', boxShadow: '0 1px 4px rgba(0,0,0,.6)' }} />
+              </motion.div>
+
+              {/* Cubo central dourado */}
+              <div className="absolute rounded-full flex items-center justify-center z-10"
+                style={{
+                  inset: '38%',
+                  background: 'radial-gradient(circle at 35% 30%, #f4d77c, #b8860b 60%, #6b4f10)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,.7), inset 0 2px 4px rgba(255,255,255,.4)',
+                }}>
+                {result && !spinning ? (
+                  <span className="text-lg font-black text-white drop-shadow">{result.winningNumber}</span>
+                ) : (
+                  <div className="w-1/2 h-1/2 rounded-full" style={{ background: 'radial-gradient(circle, #fff8dc, #d4af37)' }} />
+                )}
               </div>
-            ))}
-          </div>
-        </Card>
-      )}
+            </div>
+
+            {result && !spinning && (
+              <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-3">
+                <Badge color={result.totalWon > 0 ? 'green' : 'red'}>
+                  {result.totalWon > 0 ? `🎉 Ganhastes ${formatPoints(result.totalWon)}!` : '😢 Sem sorte desta vez'}
+                </Badge>
+              </motion.div>
+            )}
+          </Card>
+
+          {/* Valor da ficha de aposta */}
+          <Card className="mt-4">
+            <label className="text-xs font-medium text-text2 block mb-2">💎 Valor por ficha</label>
+            <div className="flex items-center gap-2">
+              <input type="number" min="1" step="1" value={betInput} disabled={spinning}
+                onChange={e => setBetInput(Math.max(1, +e.target.value))}
+                className="flex-1 bg-bg3 border border-border2 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none focus:border-orange" />
+              {[10, 50, 100, 500].map(v => (
+                <button key={v} disabled={spinning} onClick={() => setBetInput(v)}
+                  className="px-2.5 py-2 rounded-lg bg-bg4 border border-border text-xs font-semibold hover:border-orange transition-colors disabled:opacity-40">
+                  {v}
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          <Button onClick={spin} loading={spinning} disabled={!Object.keys(bets).length} className="w-full py-3 mt-4">
+            {spinning ? 'A girar...' : `🎡 Girar — ${formatPoints(totalStake)}`}
+          </Button>
+
+          {/* Apostas atuais */}
+          {Object.keys(bets).length > 0 && (
+            <Card className="mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-bold text-sm">🎫 As tuas apostas</h3>
+                <button onClick={clearBets} disabled={spinning} className="text-xs text-text3 hover:text-red transition-colors disabled:opacity-40">
+                  Limpar tudo
+                </button>
+              </div>
+              <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                {Object.entries(bets).map(([key, amount]) => {
+                  const [type, value] = key.split(':');
+                  const label = type === 'color' ? (value === 'red' ? 'Vermelho' : value === 'black' ? 'Preto' : 'Verde') :
+                                type === 'parity' ? (value === 'even' ? 'Par' : 'Ímpar') : `Número ${value}`;
+                  return (
+                    <div key={key} className="flex items-center justify-between bg-bg4 rounded-lg px-3 py-1.5 text-xs">
+                      <span className="text-text2">{label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-orange">{formatPoints(amount)}</span>
+                        <button onClick={() => removeBet(key)} disabled={spinning} className="text-text3 hover:text-red transition-colors disabled:opacity-40">✕</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-border text-sm font-bold">
+                <span>Total apostado</span>
+                <span className="text-orange">{formatPoints(totalStake)}</span>
+              </div>
+            </Card>
+          )}
+        </div>
+
+        {/* ── COLUNA DIREITA: mesa de apostas estilo casino real ── */}
+        <div>
+          <Card>
+            <h3 className="font-bold text-sm mb-3">🎯 Mesa de Apostas — clica para apostar</h3>
+
+            <div className="flex border border-border2 rounded-card overflow-hidden">
+              {/* Coluna do zero */}
+              <button disabled={spinning} onClick={() => addBet('number', 0)}
+                className={`relative w-10 flex-shrink-0 flex items-center justify-center text-sm font-bold text-white border-2
+                  transition-all ${bets['number:0'] ? 'border-orange' : 'border-transparent hover:brightness-110'}`}
+                style={{ background: COLOR_HEX.green }}>
+                0
+                {bets['number:0'] && <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-orange text-black text-[9px] font-black rounded-full flex items-center justify-center">{bets['number:0']}</span>}
+              </button>
+
+              {/* Grelha 3x12 */}
+              <div className="flex-1 grid grid-rows-3 gap-px bg-border2">
+                {ROWS.map((row, ri) => (
+                  <div key={ri} className="grid grid-cols-12 gap-px">
+                    {row.map(n => {
+                      const key = `number:${n}`;
+                      const has = bets[key];
+                      const color = numberColor(n);
+                      return (
+                        <button key={n} disabled={spinning} onClick={() => addBet('number', n)}
+                          className={`relative aspect-[4/3] flex items-center justify-center text-xs font-bold text-white border-2
+                            transition-all disabled:opacity-60 ${has ? 'border-orange z-10' : 'border-transparent hover:brightness-110'}`}
+                          style={{ background: COLOR_HEX[color] }}>
+                          {n}
+                          {has && <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-orange text-black text-[9px] font-black rounded-full flex items-center justify-center z-20">{has}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Dúzias */}
+            <div className="grid grid-cols-3 gap-px bg-border2 mt-px rounded-b-card overflow-hidden">
+              {[
+                { label: '1ª 12', value: '1' },
+                { label: '2ª 12', value: '2' },
+                { label: '3ª 12', value: '3' },
+              ].map(d => {
+                const key = `dozen:${d.value}`;
+                const has = bets[key];
+                return (
+                  <button key={d.value} disabled={spinning} onClick={() => addBet('dozen', d.value)}
+                    className={`relative py-2.5 text-xs font-bold bg-bg4 transition-all disabled:opacity-50
+                      ${has ? 'text-orange ring-2 ring-inset ring-orange' : 'text-text2 hover:bg-bg3'}`}>
+                    {d.label}
+                    {has && <span className="absolute top-1 right-1 w-4 h-4 bg-orange text-black text-[9px] font-black rounded-full flex items-center justify-center">{has}</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Apostas exteriores: 1-18 / Par / Vermelho / Preto / Ímpar / 19-36 */}
+            <div className="grid grid-cols-6 gap-px bg-border2 mt-2 rounded-card overflow-hidden">
+              <button disabled={spinning} onClick={() => addBet('half', 'low')}
+                className={`relative py-2.5 text-[11px] font-bold bg-bg4 transition-all disabled:opacity-50
+                  ${bets['half:low'] ? 'text-orange ring-2 ring-inset ring-orange' : 'text-text2 hover:bg-bg3'}`}>
+                1-18
+                {bets['half:low'] && <span className="absolute top-1 right-1 w-4 h-4 bg-orange text-black text-[9px] font-black rounded-full flex items-center justify-center">{bets['half:low']}</span>}
+              </button>
+              <button disabled={spinning} onClick={() => addBet('parity', 'even')}
+                className={`relative py-2.5 text-[11px] font-bold bg-bg4 transition-all disabled:opacity-50
+                  ${bets['parity:even'] ? 'text-orange ring-2 ring-inset ring-orange' : 'text-text2 hover:bg-bg3'}`}>
+                Par
+                {bets['parity:even'] && <span className="absolute top-1 right-1 w-4 h-4 bg-orange text-black text-[9px] font-black rounded-full flex items-center justify-center">{bets['parity:even']}</span>}
+              </button>
+              <button disabled={spinning} onClick={() => addBet('color', 'red')}
+                className={`relative py-2.5 flex items-center justify-center transition-all disabled:opacity-50 border-2
+                  ${bets['color:red'] ? 'border-orange' : 'border-transparent hover:brightness-110'}`}
+                style={{ background: COLOR_HEX.red }}>
+                <div className="w-4 h-4 rounded-sm" style={{ background: COLOR_HEX.red, border: '1.5px solid #fff' }} />
+                {bets['color:red'] && <span className="absolute top-1 right-1 w-4 h-4 bg-orange text-black text-[9px] font-black rounded-full flex items-center justify-center">{bets['color:red']}</span>}
+              </button>
+              <button disabled={spinning} onClick={() => addBet('color', 'black')}
+                className={`relative py-2.5 flex items-center justify-center transition-all disabled:opacity-50 border-2
+                  ${bets['color:black'] ? 'border-orange' : 'border-transparent hover:brightness-110'}`}
+                style={{ background: COLOR_HEX.black }}>
+                <div className="w-4 h-4 rounded-sm" style={{ background: COLOR_HEX.black, border: '1.5px solid #fff' }} />
+                {bets['color:black'] && <span className="absolute top-1 right-1 w-4 h-4 bg-orange text-black text-[9px] font-black rounded-full flex items-center justify-center">{bets['color:black']}</span>}
+              </button>
+              <button disabled={spinning} onClick={() => addBet('parity', 'odd')}
+                className={`relative py-2.5 text-[11px] font-bold bg-bg4 transition-all disabled:opacity-50
+                  ${bets['parity:odd'] ? 'text-orange ring-2 ring-inset ring-orange' : 'text-text2 hover:bg-bg3'}`}>
+                Ímpar
+                {bets['parity:odd'] && <span className="absolute top-1 right-1 w-4 h-4 bg-orange text-black text-[9px] font-black rounded-full flex items-center justify-center">{bets['parity:odd']}</span>}
+              </button>
+              <button disabled={spinning} onClick={() => addBet('half', 'high')}
+                className={`relative py-2.5 text-[11px] font-bold bg-bg4 transition-all disabled:opacity-50
+                  ${bets['half:high'] ? 'text-orange ring-2 ring-inset ring-orange' : 'text-text2 hover:bg-bg3'}`}>
+                19-36
+                {bets['half:high'] && <span className="absolute top-1 right-1 w-4 h-4 bg-orange text-black text-[9px] font-black rounded-full flex items-center justify-center">{bets['half:high']}</span>}
+              </button>
+            </div>
+
+            
+          </Card>
+
+          {/* Resultados detalhados da última jogada */}
+          {result && !spinning && (
+            <Card className="mt-4">
+              <h3 className="font-bold text-sm mb-2">📋 Resultado: número {result.winningNumber} ({result.winningColor})</h3>
+              <div className="space-y-1.5">
+                {result.results.map((r, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <span className="text-text2">
+                      {r.type === 'color' ? (r.value === 'red' ? 'Vermelho' : r.value === 'black' ? 'Preto' : 'Verde') :
+                       r.type === 'parity' ? (r.value === 'even' ? 'Par' : 'Ímpar') : `Número ${r.value}`}
+                      {' — '}{formatPoints(r.amount)}
+                    </span>
+                    <Badge color={r.won ? 'green' : 'red'}>
+                      {r.won ? `✅ +${formatPoints(r.winAmount)}` : '❌'}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

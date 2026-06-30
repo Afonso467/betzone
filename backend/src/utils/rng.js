@@ -91,6 +91,21 @@ function checkRouletteBet(bet, winningNumber) {
     return won ? 2 : 0;
   }
 
+  // Dúzia: '1' = 1-12, '2' = 13-24, '3' = 25-36 — paga 3x
+  if (bet.type === 'dozen') {
+    if (winningNumber === 0) return 0;
+    const dozen = Math.ceil(winningNumber / 12).toString();
+    return bet.value === dozen ? 3 : 0;
+  }
+
+  // Metade: 'low' = 1-18, 'high' = 19-36 — paga 2x
+  if (bet.type === 'half') {
+    if (winningNumber === 0) return 0;
+    const isLow = winningNumber <= 18;
+    const won = (bet.value === 'low' && isLow) || (bet.value === 'high' && !isLow);
+    return won ? 2 : 0;
+  }
+
   return 0;
 }
 

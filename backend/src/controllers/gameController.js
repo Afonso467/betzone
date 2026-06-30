@@ -245,7 +245,7 @@ const roulette = asyncHandler(async (req, res) => {
     throw createError('Precisas de fazer pelo menos uma aposta', 400);
   }
 
-  const VALID_TYPES = ['color', 'number', 'parity'];
+  const VALID_TYPES = ['color', 'number', 'parity', 'dozen', 'half'];
   let totalStake = 0;
   for (const bet of bets) {
     if (!VALID_TYPES.includes(bet.type)) throw createError(`Tipo de aposta inválido: ${bet.type}`, 400);
@@ -258,6 +258,12 @@ const roulette = asyncHandler(async (req, res) => {
     }
     if (bet.type === 'parity' && !['even', 'odd'].includes(bet.value)) {
       throw createError('Paridade inválida — usa even ou odd', 400);
+    }
+    if (bet.type === 'dozen' && !['1', '2', '3'].includes(String(bet.value))) {
+      throw createError('Dúzia inválida — usa 1, 2 ou 3', 400);
+    }
+    if (bet.type === 'half' && !['low', 'high'].includes(bet.value)) {
+      throw createError('Metade inválida — usa low ou high', 400);
     }
     totalStake += bet.amount;
   }
