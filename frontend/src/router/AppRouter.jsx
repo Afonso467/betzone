@@ -16,7 +16,7 @@ import SkinMarket  from '../pages/SkinMarket';
 import Loja        from '../pages/Loja';
 import Leaderboard from '../pages/Leaderboard';
 import Admin       from '../pages/Admin';
-import { MinesPage, CoinflipPage, CrashPage, BlackjackPage, CasesPage } from '../pages/GamePages';
+import { MinesPage, CoinflipPage, CrashPage, BlackjackPage, CasesPage, RoulettePage } from '../pages/GamePages';
 import { Parcerias, Sobre } from '../pages/StaticPages';
 
 // Bloqueia o acesso a rotas privadas se não houver sessão ativa
@@ -48,6 +48,7 @@ export default function AppRouter() {
         <Route path="crash"     element={<CrashPage />} />
         <Route path="blackjack" element={<BlackjackPage />} />
         <Route path="cases"     element={<CasesPage />} />
+        <Route path="roulette"  element={<RoulettePage />} />
         <Route path="apostas"   element={<Apostas />} />
         <Route path="giveaways" element={<Giveaways />} />
         <Route path="market"    element={<SkinMarket />} />

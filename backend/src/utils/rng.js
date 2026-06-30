@@ -47,7 +47,54 @@ function rollCaseItem(items) {
   return items[0];
 }
 
-// ── XP e Níveis ──────────────────────────────────────────────────────────────
+// ── ROLETA EUROPEIA (0-36) ────────────────────────────────────────────────────
+// Números vermelhos da roleta europeia padrão (os restantes são pretos, exceto o 0 = verde)
+const ROULETTE_RED_NUMBERS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+
+function rouletteColor(number) {
+  if (number === 0) return 'green';
+  return ROULETTE_RED_NUMBERS.has(number) ? 'red' : 'black';
+}
+
+// Gira a roleta — devolve o número sorteado (0-36) com RNG seguro do servidor
+function spinRoulette() {
+  return Math.floor(secureRandom() * 37); // 0 a 36 inclusive
+}
+
+// Calcula o multiplicador de pagamento consoante o tipo de aposta, se ganhar.
+// Payouts clássicos de casino (incluindo a aposta original — ex: vermelho paga 2x o total).
+const ROULETTE_PAYOUTS = {
+  color:    2,  // vermelho / preto / verde — verde paga diferente, tratado em baixo
+  number:   36, // número exato (pleno)
+  parity:   2,  // par / ímpar
+};
+
+// Verifica se uma aposta específica ganhou, e devolve o multiplicador de pagamento.
+// bet = { type: 'color'|'number'|'parity', value: 'red'|'black'|'green'|0-36|'even'|'odd' }
+function checkRouletteBet(bet, winningNumber) {
+  const color = rouletteColor(winningNumber);
+
+  if (bet.type === 'color') {
+    if (bet.value !== color) return 0;
+    // O verde (número 0) tem payout mais alto por ser mais raro (1/37)
+    return bet.value === 'green' ? 35 : 2;
+  }
+
+  if (bet.type === 'number') {
+    return Number(bet.value) === winningNumber ? 36 : 0;
+  }
+
+  if (bet.type === 'parity') {
+    if (winningNumber === 0) return 0; // 0 não é par nem ímpar nas apostas de paridade
+    const isEven = winningNumber % 2 === 0;
+    const won = (bet.value === 'even' && isEven) || (bet.value === 'odd' && !isEven);
+    return won ? 2 : 0;
+  }
+
+  return 0;
+}
+
+
 const XP_REWARDS = {
   mines_safe:     15,
   mines_cashout:  50,
@@ -58,6 +105,7 @@ const XP_REWARDS = {
   case_open:      20,
   bet_win:        35,
   giveaway_enter: 10,
+  roulette_win:   35,
 };
 
 function xpForLevel(level) {
@@ -100,6 +148,9 @@ module.exports = {
   calcMinesMultiplier,
   generateCrashPoint,
   rollCaseItem,
+  spinRoulette,
+  rouletteColor,
+  checkRouletteBet,
   XP_REWARDS,
   xpForLevel,
   levelFromXp,

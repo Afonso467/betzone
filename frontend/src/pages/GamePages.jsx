@@ -1,4 +1,4 @@
-import { MinesGame, CoinflipGame, CrashGame, BlackjackGame, CaseOpeningGame } from '../components/games';
+import { MinesGame, CoinflipGame, CrashGame, BlackjackGame, CaseOpeningGame, RouletteGame } from '../components/games';
 
 function GamePage({ title, icon, children }) {
   return (
@@ -16,3 +16,4 @@ export function CoinflipPage()  { return <GamePage title="Coinflip"     icon="�
 export function CrashPage()     { return <GamePage title="Crash"        icon="📈"><CrashGame /></GamePage>; }
 export function BlackjackPage() { return <GamePage title="Blackjack"    icon="🃏"><BlackjackGame /></GamePage>; }
 export function CasesPage()     { return <GamePage title="Case Opening" icon="📦"><CaseOpeningGame /></GamePage>; }
+export function RoulettePage()  { return <GamePage title="Roleta"       icon="🎡"><RouletteGame /></GamePage>; }

@@ -5,6 +5,7 @@ const { asyncHandler, createError } = require('../middleware/errorHandler');
 const {
   generateMinePositions, calcMinesMultiplier,
   generateCrashPoint, rollCaseItem,
+  spinRoulette, rouletteColor, checkRouletteBet,
   XP_REWARDS, createShuffledDeck, handTotal,
 } = require('../utils/rng');
 
@@ -232,6 +233,69 @@ const getCasesWithItems = asyncHandler(async (req, res) => {
   res.json({ cases });
 });
 
+// ── ROLETA EUROPEIA (0-36) ────────────────────────────────────────────────────
+// Suporta várias apostas simultâneas na mesma jogada (igual a um casino real:
+// podes apostar em "vermelho" e no número "17" ao mesmo tempo, por exemplo).
+// Body: { bets: [{ type: 'color'|'number'|'parity', value: ..., amount: number }] }
+const roulette = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const { bets } = req.body;
+
+  if (!Array.isArray(bets) || bets.length === 0) {
+    throw createError('Precisas de fazer pelo menos uma aposta', 400);
+  }
+
+  const VALID_TYPES = ['color', 'number', 'parity'];
+  let totalStake = 0;
+  for (const bet of bets) {
+    if (!VALID_TYPES.includes(bet.type)) throw createError(`Tipo de aposta inválido: ${bet.type}`, 400);
+    if (!bet.amount || bet.amount < 1) throw createError('Cada aposta precisa de um valor mínimo de 1 ponto', 400);
+    if (bet.type === 'color' && !['red', 'black', 'green'].includes(bet.value)) {
+      throw createError('Cor inválida — usa red, black ou green', 400);
+    }
+    if (bet.type === 'number' && (bet.value < 0 || bet.value > 36)) {
+      throw createError('Número inválido — tem de estar entre 0 e 36', 400);
+    }
+    if (bet.type === 'parity' && !['even', 'odd'].includes(bet.value)) {
+      throw createError('Paridade inválida — usa even ou odd', 400);
+    }
+    totalStake += bet.amount;
+  }
+
+  // Debita o total de todas as apostas de uma vez, como uma única transação
+  await debit(userId, totalStake, `Roleta — ${bets.length} aposta(s), ${totalStake} pts`);
+
+  const winningNumber = spinRoulette();
+  const winningColor  = rouletteColor(winningNumber);
+
+  let totalWon = 0;
+  const results = bets.map(bet => {
+    const multiplier = checkRouletteBet(bet, winningNumber);
+    const winAmount = multiplier > 0 ? bet.amount * multiplier : 0;
+    totalWon += winAmount;
+    return { ...bet, won: multiplier > 0, multiplier, winAmount };
+  });
+
+  if (totalWon > 0) {
+    await credit(userId, totalWon, `Roleta vitória — número ${winningNumber}`);
+    await UserModel.addXP(userId, XP_REWARDS.roulette_win);
+    await UserModel.incrementWins(userId);
+  } else {
+    await UserModel.incrementLosses(userId);
+  }
+
+  await GameModel.createMatch({
+    userId, gameType: 'roulette',
+    betAmount: totalStake, winAmount: totalWon,
+    multiplier: totalStake > 0 ? totalWon / totalStake : 0,
+    result: totalWon > 0 ? 'win' : 'loss',
+    meta: { winningNumber, winningColor, bets: results },
+  });
+
+  const user = await getUser(userId);
+  res.json({ winningNumber, winningColor, results, totalWon, points: user.points });
+});
+
 // ── USER STATE (pontos, xp, stats) ────────────────────────────────────────────
 const getUserState = asyncHandler(async (req, res) => {
   const userId = req.user.id;
@@ -241,4 +305,4 @@ const getUserState = asyncHandler(async (req, res) => {
   res.json({ user, stats, history });
 });
 
-module.exports = { minesStart, minesReveal, minesCashout, coinflip, crashJoin, crashCashout, blackjackDeal, blackjackAction, caseOpen, getCasesWithItems, getUserState };
+module.exports = { minesStart, minesReveal, minesCashout, coinflip, crashJoin, crashCashout, blackjackDeal, blackjackAction, caseOpen, getCasesWithItems, roulette, getUserState };

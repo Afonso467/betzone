@@ -291,14 +291,16 @@ export function CrashGame() {
 // ── BLACKJACK ─────────────────────────────────────────────────────────────────
 function PlayingCard({ card, faceDown }) {
   return (
-    <div
-      style={!faceDown ? { color: card?.red ? '#dc2626' : '#111827' } : {}}
+    <motion.div
+      initial={{ rotateY: 90, scale: 0.8 }}
+      animate={{ rotateY: 0, scale: 1 }}
       className={`w-14 h-20 rounded-lg flex items-center justify-center text-lg font-bold
-        border shadow-card flex-shrink-0
-        ${faceDown ? 'bg-gradient-to-br from-blue/40 to-purple/40 border-border2' : 'bg-white border-gray-200'}`}
+        border shadow-card -ml-2 first:ml-0 flex-shrink-0
+        ${faceDown ? 'bg-gradient-to-br from-blue/40 to-purple/40 border-border2' :
+          card?.red ? 'bg-white text-red border-gray-200' : 'bg-white text-gray-900 border-gray-200'}`}
     >
-      {faceDown ? '' : (card?.v && card?.s) ? `${card.v}${card.s}` : ''}
-    </div>
+      {faceDown ? '' : card ? `${card.v}${card.s}` : ''}
+    </motion.div>
   );
 }
 
@@ -576,6 +578,245 @@ export function CaseOpeningGame() {
               <span className="text-xs text-text2 w-14 text-right">{parseFloat(item.chance).toFixed(3)}%</span>
             </div>
           ))}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ── ROLETA EUROPEIA ────────────────────────────────────────────────────────────
+const ROULETTE_RED = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+function numberColor(n) {
+  if (n === 0) return 'green';
+  return ROULETTE_RED.has(n) ? 'red' : 'black';
+}
+const COLOR_HEX = { red: '#dc2626', black: '#18181b', green: '#16a34a' };
+
+export function RouletteGame() {
+  const { refresh } = useGame();
+  // bets = { 'color:red': amount, 'number:17': amount, 'parity:even': amount }
+  const [bets, setBets] = useState({});
+  const [betInput, setBetInput] = useState(20);
+  const [spinning, setSpinning] = useState(false);
+  const [result, setResult] = useState(null);
+  const [rotation, setRotation] = useState(0);
+
+  const totalStake = Object.values(bets).reduce((a, b) => a + b, 0);
+
+  const addBet = (type, value) => {
+    if (spinning) return;
+    const key = `${type}:${value}`;
+    setBets(prev => ({ ...prev, [key]: (prev[key] || 0) + betInput }));
+  };
+
+  const clearBets = () => { if (!spinning) setBets({}); };
+
+  const removeBet = (key) => {
+    if (spinning) return;
+    setBets(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const spin = async () => {
+    if (!Object.keys(bets).length) return toast.error('Faz pelo menos uma aposta');
+    setSpinning(true);
+    setResult(null);
+    try {
+      const payload = {
+        bets: Object.entries(bets).map(([key, amount]) => {
+          const [type, value] = key.split(':');
+          return { type, value: type === 'number' ? Number(value) : value, amount };
+        }),
+      };
+      const { data } = await api.post('/games/roulette', payload);
+
+      // Animação: gira várias voltas + posição final do número sorteado
+      const segAngle = 360 / 37;
+      const targetAngle = 360 * 4 + (data.winningNumber * segAngle);
+      setRotation(r => r + targetAngle);
+
+      setTimeout(() => {
+        setSpinning(false);
+        setResult(data);
+        setBets({});
+        refresh();
+        if (data.totalWon > 0) toast.success(`🎉 Número ${data.winningNumber}! +${formatPoints(data.totalWon)}`);
+        else toast.error(`😢 Saiu o ${data.winningNumber} (${data.winningColor})`);
+      }, 3200);
+    } catch (err) {
+      setSpinning(false);
+      toast.error(err.response?.data?.error || err.message);
+    }
+  };
+
+  const numbers = Array.from({ length: 37 }, (_, i) => i);
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      {/* Roda */}
+      <Card className="text-center mb-4 overflow-hidden">
+        <div className="relative w-48 h-48 mx-auto mb-4 flex items-center justify-center">
+          <motion.div
+            className="absolute inset-0 rounded-full border-8 border-bg4"
+            style={{
+              background: `conic-gradient(${numbers.map((n, i) =>
+                `${COLOR_HEX[numberColor(n)]} ${i * (360/37)}deg ${(i+1) * (360/37)}deg`
+              ).join(',')})`,
+            }}
+            animate={{ rotate: rotation }}
+            transition={{ duration: 3, ease: [0.2, 0.8, 0.3, 1] }}
+          />
+          <div className="absolute w-16 h-16 bg-bg3 rounded-full border-4 border-border2 flex items-center justify-center z-10">
+            {result && !spinning ? (
+              <span className="text-xl font-black" style={{ color: COLOR_HEX[result.winningColor] === '#18181b' ? '#fff' : COLOR_HEX[result.winningColor] }}>
+                {result.winningNumber}
+              </span>
+            ) : <span className="text-2xl">🎡</span>}
+          </div>
+          {/* Seta indicadora */}
+          <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-0 h-0 z-20"
+            style={{ borderLeft: '8px solid transparent', borderRight: '8px solid transparent', borderTop: '14px solid var(--orange)' }} />
+        </div>
+
+        {result && !spinning && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-2">
+            <Badge color={result.totalWon > 0 ? 'green' : 'red'}>
+              {result.totalWon > 0 ? `🎉 Ganhastes ${formatPoints(result.totalWon)}!` : '😢 Sem sorte desta vez'}
+            </Badge>
+          </motion.div>
+        )}
+
+        <Button onClick={spin} loading={spinning} disabled={!Object.keys(bets).length} className="w-full py-3 max-w-xs mx-auto">
+          {spinning ? 'A girar...' : `🎡 Girar — ${formatPoints(totalStake)}`}
+        </Button>
+      </Card>
+
+      {/* Valor da ficha de aposta */}
+      <Card className="mb-4">
+        <div className="flex items-center gap-3">
+          <label className="text-xs font-medium text-text2 flex-shrink-0">💎 Valor por ficha</label>
+          <input type="number" min="1" step="1" value={betInput} disabled={spinning}
+            onChange={e => setBetInput(Math.max(1, +e.target.value))}
+            className="flex-1 bg-bg3 border border-border2 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none focus:border-orange" />
+          {[10, 50, 100, 500].map(v => (
+            <button key={v} disabled={spinning} onClick={() => setBetInput(v)}
+              className="px-2.5 py-2 rounded-lg bg-bg4 border border-border text-xs font-semibold hover:border-orange transition-colors disabled:opacity-40">
+              {v}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {/* Mesa de apostas */}
+      <Card className="mb-4">
+        <h3 className="font-bold text-sm mb-3">🎯 Mesa de Apostas — clica para apostar</h3>
+
+        {/* Números 0-36 */}
+        <div className="grid grid-cols-9 sm:grid-cols-12 gap-1.5 mb-3">
+          {numbers.map(n => {
+            const key = `number:${n}`;
+            const has = bets[key];
+            const color = numberColor(n);
+            return (
+              <button key={n} disabled={spinning} onClick={() => addBet('number', n)}
+                className={`relative aspect-square rounded-lg text-xs font-bold flex items-center justify-center
+                  transition-all disabled:opacity-50 border-2
+                  ${has ? 'border-orange scale-95' : 'border-transparent hover:scale-105'}`}
+                style={{ background: COLOR_HEX[color], color: color === 'black' ? '#fff' : '#fff' }}>
+                {n}
+                {has && <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-orange text-black text-[9px] font-black rounded-full flex items-center justify-center">{has}</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Cor */}
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          {['red', 'black', 'green'].map(c => {
+            const key = `color:${c}`;
+            const has = bets[key];
+            return (
+              <button key={c} disabled={spinning} onClick={() => addBet('color', c)}
+                className={`relative py-3 rounded-[10px] font-bold text-sm border-2 transition-all disabled:opacity-50
+                  ${has ? 'border-orange' : 'border-border2 hover:border-border'}`}
+                style={{ background: COLOR_HEX[c], color: '#fff' }}>
+                {c === 'red' ? 'Vermelho' : c === 'black' ? 'Preto' : 'Verde (0)'} {c !== 'green' ? '2x' : '35x'}
+                {has && <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-orange text-black text-[10px] font-black rounded-full flex items-center justify-center">{has}</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Par / Ímpar */}
+        <div className="grid grid-cols-2 gap-2">
+          {['even', 'odd'].map(p => {
+            const key = `parity:${p}`;
+            const has = bets[key];
+            return (
+              <button key={p} disabled={spinning} onClick={() => addBet('parity', p)}
+                className={`relative py-3 rounded-[10px] font-bold text-sm border-2 transition-all disabled:opacity-50
+                  bg-bg4 ${has ? 'border-orange text-orange' : 'border-border2 text-text2 hover:border-border'}`}>
+                {p === 'even' ? 'Par' : 'Ímpar'} 2x
+                {has && <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-orange text-black text-[10px] font-black rounded-full flex items-center justify-center">{has}</span>}
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Apostas atuais */}
+      {Object.keys(bets).length > 0 && (
+        <Card>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-bold text-sm">🎫 As tuas apostas</h3>
+            <button onClick={clearBets} disabled={spinning} className="text-xs text-text3 hover:text-red transition-colors disabled:opacity-40">
+              Limpar tudo
+            </button>
+          </div>
+          <div className="space-y-1.5">
+            {Object.entries(bets).map(([key, amount]) => {
+              const [type, value] = key.split(':');
+              const label = type === 'color' ? (value === 'red' ? 'Vermelho' : value === 'black' ? 'Preto' : 'Verde') :
+                            type === 'parity' ? (value === 'even' ? 'Par' : 'Ímpar') : `Número ${value}`;
+              return (
+                <div key={key} className="flex items-center justify-between bg-bg4 rounded-lg px-3 py-1.5 text-xs">
+                  <span className="text-text2">{label}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-orange">{formatPoints(amount)}</span>
+                    <button onClick={() => removeBet(key)} disabled={spinning} className="text-text3 hover:text-red transition-colors disabled:opacity-40">✕</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-border text-sm font-bold">
+            <span>Total apostado</span>
+            <span className="text-orange">{formatPoints(totalStake)}</span>
+          </div>
+        </Card>
+      )}
+
+      {/* Resultados detalhados da última jogada */}
+      {result && !spinning && (
+        <Card className="mt-4">
+          <h3 className="font-bold text-sm mb-2">📋 Resultado: número {result.winningNumber} ({result.winningColor})</h3>
+          <div className="space-y-1.5">
+            {result.results.map((r, i) => (
+              <div key={i} className="flex items-center justify-between text-xs">
+                <span className="text-text2">
+                  {r.type === 'color' ? (r.value === 'red' ? 'Vermelho' : r.value === 'black' ? 'Preto' : 'Verde') :
+                   r.type === 'parity' ? (r.value === 'even' ? 'Par' : 'Ímpar') : `Número ${r.value}`}
+                  {' — '}{formatPoints(r.amount)}
+                </span>
+                <Badge color={r.won ? 'green' : 'red'}>
+                  {r.won ? `✅ +${formatPoints(r.winAmount)}` : '❌'}
+                </Badge>
+              </div>
+            ))}
+          </div>
         </Card>
       )}
     </div>

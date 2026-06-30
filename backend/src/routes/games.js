@@ -1,6 +1,6 @@
 const express = require('express');
 const r = express.Router();
-const { minesStart, minesReveal, minesCashout, coinflip, crashJoin, crashCashout, blackjackDeal, blackjackAction, caseOpen, getCasesWithItems, getUserState } = require('../controllers/gameController');
+const { minesStart, minesReveal, minesCashout, coinflip, crashJoin, crashCashout, blackjackDeal, blackjackAction, caseOpen, getCasesWithItems, roulette, getUserState } = require('../controllers/gameController');
 const { gameLimiter } = require('../middleware/rateLimiter');
 const { authenticate } = require('../middleware/auth');
 
@@ -16,4 +16,5 @@ r.post('/blackjack/deal',     blackjackDeal);
 r.post('/blackjack/action',   blackjackAction);
 r.get('/cases',                getCasesWithItems);
 r.post('/cases/open',         caseOpen);
+r.post('/roulette',           roulette);
 module.exports = r;

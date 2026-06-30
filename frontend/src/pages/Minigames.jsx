@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 const GAMES = [
   { path: '/mines',     icon: '💣', title: 'Mines',        desc: 'Evita as minas e multiplica o teu saldo. Quanto mais longe fores, maior o multiplicador!', color: '#10b981' },
   { path: '/cases',     icon: '📦', title: 'Case Opening',  desc: 'Abre caixas e descobre skins raras. Podes ganhar itens Covert e Special!',               color: '#8b5cf6' },
+  { path: '/roulette',  icon: '🎡', title: 'Roleta',        desc: 'Roleta europeia clássica. Aposta em cor, número exato ou par/ímpar!',                     color: '#dc2626' },
   { path: '/coinflip',  icon: '🪙', title: 'Coinflip',      desc: 'Cara ou Coroa? Uma moeda decide o teu destino. Simples e viciante.',                      color: '#F59E0B' },
   { path: '/apostas',   icon: '🎲', title: 'Apostas',       desc: 'Aposta em eventos de esports. Analisa as odds e maximiza os teus ganhos.',                 color: '#3b82f6' },
   { path: '/crash',     icon: '📈', title: 'Crash',         desc: 'O multiplicador sobe continuamente. Retira antes do crash ou perde tudo!',                 color: '#ef4444' },
