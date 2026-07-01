@@ -1,40 +1,35 @@
 import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, User, Handshake, Info, Gift, ShoppingBag,
-  Store, Trophy, Gamepad2, Dices, Package, CircleDollarSign,
-  Bomb, TrendingUp, Club, Disc3, Instagram, Youtube, Tv2, MessageCircle,
+  LayoutDashboard, User, Info, Gift, ShoppingBag,
+  Trophy, Gamepad2, Dices, Package, CircleDollarSign,
+  Bomb, TrendingUp, Club, Disc3, Layers, Joystick,
   ChevronLeft, ChevronRight, ShieldCheck,
 } from 'lucide-react';
 
 const MAIN_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard',    path: '/' },
   { icon: User,            label: 'Meu Perfil',   path: '/profile' },
-  { icon: Handshake,       label: 'Parcerias',    path: '/parcerias' },
   { icon: Info,            label: 'Sobre',        path: '/sobre' },
   { icon: Gift,            label: 'Giveaways',    path: '/giveaways' },
   { icon: ShoppingBag,     label: 'Skin Market',  path: '/market' },
- { icon: Store,           label: 'Loja',         path: '/loja' },
   { icon: Trophy,          label: 'Classificação',path: '/leaderboard' },
 ];
 
 const GAME_ITEMS = [
-  { icon: Gamepad2,           label: 'Minigames',    path: '/minigames' },
-  { icon: Dices,              label: 'Apostas',      path: '/apostas' },
-  { icon: Package,            label: 'Case Opening', path: '/cases' },
-  { icon: Disc3,              label: 'Roleta',       path: '/roulette' },
-  { icon: CircleDollarSign,   label: 'Coinflip',     path: '/coinflip' },
-  { icon: Bomb,               label: 'Mines',        path: '/mines' },
-  { icon: TrendingUp,         label: 'Crash',        path: '/crash' },
-  { icon: Club,               label: 'Blackjack',    path: '/blackjack' },
+  { icon: Gamepad2,          label: 'Minigames',    path: '/minigames' },
+  { icon: Dices,             label: 'Apostas',      path: '/apostas' },
+  { icon: Package,           label: 'Case Opening', path: '/cases' },
+  { icon: Disc3,             label: 'Roleta',       path: '/roulette' },
+  { icon: CircleDollarSign,  label: 'Coinflip',     path: '/coinflip' },
+  { icon: Bomb,              label: 'Mines',        path: '/mines' },
+  { icon: TrendingUp,        label: 'Crash',        path: '/crash' },
+  { icon: Club,              label: 'Blackjack',    path: '/blackjack' },
+  { icon: Dices,             label: 'Dice',         path: '/dice' },
+  { icon: Layers,            label: 'Plinko',       path: '/plinko' },
+  { icon: Club,              label: 'Vídeo Poker',  path: '/poker' },
+  { icon: Joystick,          label: 'Slots',        path: '/slots' },
 ];
-
-{/* Logo const SOCIAL_ITEMS = [
-  { icon: Instagram,      label: 'Instagram', href: 'https://instagram.com' },
-  { icon: Youtube,        label: 'Youtube',   href: 'https://youtube.com'  },
-  { icon: Tv2,            label: 'Twitch',    href: 'https://twitch.tv'    },
-  { icon: MessageCircle,  label: 'Discord',   href: 'https://discord.com'  },
-];*/}
 
 export default function Sidebar({ collapsed, onToggle }) {
   const navigate  = useNavigate();
@@ -127,9 +122,6 @@ export default function Sidebar({ collapsed, onToggle }) {
 
         <SectionLabel>Minigames</SectionLabel>
         {GAME_ITEMS.map(item => <NavItem key={item.path} {...item} />)}
-
-        {/*<SectionLabel>Redes Sociais</SectionLabel>
-        {SOCIAL_ITEMS.map(item => <NavItem key={item.label} {...item} />)}*/}
 
         {/* Acesso de administrador — discreto, protegido por password no backend */}
         <div className="mt-3 pt-3 border-t border-border">

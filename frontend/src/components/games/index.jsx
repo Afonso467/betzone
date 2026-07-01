@@ -928,3 +928,533 @@ export function RouletteGame() {
     </div>
   );
 }
+
+// ── DICE (HiLo) ────────────────────────────────────────────────────────────────
+export function DiceGame() {
+  const { refresh } = useGame();
+  const [bet, setBet] = useState(50);
+  const [target, setTarget] = useState(50);
+  const [direction, setDirection] = useState('over');
+  const [rolling, setRolling] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const chance = direction === 'over' ? (100 - target) : (target - 1);
+  const edge = 0.01;
+  const multiplier = chance > 0 ? Math.floor((1 / (chance / 100)) * (1 - edge) * 100) / 100 : 0;
+
+  const roll = async () => {
+    setRolling(true);
+    setResult(null);
+    try {
+      const { data } = await api.post('/games/dice', { betPoints: bet, target, direction });
+      setResult(data);
+      refresh();
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message);
+    } finally {
+      setRolling(false);
+    }
+  };
+
+  return (
+    <div className="max-w-lg mx-auto space-y-4">
+      <Card>
+        <h3 className="font-bold mb-4 text-center">🎲 Dice — escolhe o teu alvo</h3>
+
+        {/* Resultado */}
+        {result && (
+          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+            className={`text-center py-6 mb-4 rounded-[14px] border-2 ${result.won ? 'bg-success/10 border-success/30' : 'bg-red/10 border-red/30'}`}>
+            <div className="text-5xl font-black mb-1" style={{ color: result.won ? 'var(--green)' : '#ef4444' }}>{result.roll}</div>
+            <Badge color={result.won ? 'green' : 'red'}>
+              {result.won ? `✅ Ganhastes ${formatPoints(result.winPoints)}!` : '❌ Perdeste'}
+            </Badge>
+          </motion.div>
+        )}
+
+        {/* Barra de target */}
+        <div className="mb-4">
+          <div className="flex justify-between text-xs text-text2 mb-1">
+            <span>Alvo: <strong className="text-white">{target}</strong></span>
+            <span>Chance: <strong className="text-orange">{chance}%</strong></span>
+            <span>Multiplicador: <strong className="text-orange">{multiplier}x</strong></span>
+          </div>
+          <div className="relative h-10 bg-bg4 rounded-full overflow-hidden border border-border2">
+            <div className={`absolute inset-y-0 left-0 ${direction === 'under' ? 'bg-success/40' : 'bg-red/30'}`}
+              style={{ width: `${target}%` }} />
+            <div className={`absolute inset-y-0 right-0 ${direction === 'over' ? 'bg-success/40' : 'bg-red/30'}`}
+              style={{ width: `${100 - target}%` }} />
+            <div className="absolute inset-y-0 flex items-center" style={{ left: `${target}%`, transform: 'translateX(-50%)' }}>
+              <div className="w-1 h-full bg-white/60" />
+            </div>
+            <input type="range" min="2" max="98" value={target} disabled={rolling}
+              onChange={e => setTarget(+e.target.value)}
+              className="absolute inset-0 w-full opacity-0 cursor-pointer" />
+          </div>
+        </div>
+
+        {/* Over / Under */}
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <button disabled={rolling} onClick={() => setDirection('under')}
+            className={`py-3 rounded-[10px] font-bold text-sm border-2 transition-all
+              ${direction === 'under' ? 'border-orange bg-orange/10 text-orange' : 'border-border2 bg-bg4 text-text2 hover:border-border'}`}>
+            ⬇️ Under {target}
+          </button>
+          <button disabled={rolling} onClick={() => setDirection('over')}
+            className={`py-3 rounded-[10px] font-bold text-sm border-2 transition-all
+              ${direction === 'over' ? 'border-orange bg-orange/10 text-orange' : 'border-border2 bg-bg4 text-text2 hover:border-border'}`}>
+            ⬆️ Over {target}
+          </button>
+        </div>
+
+        <div className="flex gap-3 mb-3">
+          <input type="number" min="1" step="1" value={bet} disabled={rolling}
+            onChange={e => setBet(Math.max(1, +e.target.value))}
+            className="flex-1 bg-bg3 border border-border2 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none focus:border-orange" />
+          {[10, 50, 100, 500].map(v => (
+            <button key={v} disabled={rolling} onClick={() => setBet(v)}
+              className="px-2.5 py-2 rounded-lg bg-bg4 border border-border text-xs font-semibold hover:border-orange transition-colors disabled:opacity-40">
+              {v}
+            </button>
+          ))}
+        </div>
+
+        <Button onClick={roll} loading={rolling} className="w-full py-3">
+          🎲 Lançar — {formatPoints(bet)}
+        </Button>
+      </Card>
+    </div>
+  );
+}
+
+// ── PLINKO ─────────────────────────────────────────────────────────────────────
+const PLINKO_MULTS = {
+  8:  [5.6, 2.1, 1.1, 1.0, 0.5, 1.0, 1.1, 2.1, 5.6],
+  12: [10, 3, 1.6, 1.4, 1.1, 1.0, 1.1, 1.4, 1.6, 3, 10],
+  16: [16, 9, 2, 1.4, 1.4, 1.2, 1.1, 1.0, 1.1, 1.2, 1.4, 1.4, 2, 9, 16],
+};
+
+function multColor(m) {
+  if (m >= 10) return '#f59e0b';
+  if (m >= 3)  return '#8b5cf6';
+  if (m >= 1.5) return '#3b82f6';
+  if (m >= 1)  return '#10b981';
+  return '#6b7280';
+}
+
+export function PlinkoGame() {
+  const { refresh } = useGame();
+  const [bet, setBet] = useState(50);
+  const [rows, setRows] = useState(16);
+  const [dropping, setDropping] = useState(false);
+  const [result, setResult] = useState(null);
+  const [ballPos, setBallPos] = useState(null); // coluna final animada
+
+  const drop = async () => {
+    setDropping(true);
+    setResult(null);
+    setBallPos(null);
+    try {
+      const { data } = await api.post('/games/plinko', { betPoints: bet, rows });
+      // Anima a bola caindo para a posição final
+      setTimeout(() => {
+        setBallPos(data.position);
+        setTimeout(() => {
+          setResult(data);
+          refresh();
+          if (data.winPoints > 0) toast.success(`🎯 ${data.multiplier}x! +${formatPoints(data.winPoints)}`);
+          else toast.error('Sem multiplicador desta vez');
+          setDropping(false);
+        }, 600);
+      }, 200);
+    } catch (err) {
+      setDropping(false);
+      toast.error(err.response?.data?.error || err.message);
+    }
+  };
+
+  const mults = PLINKO_MULTS[rows] || PLINKO_MULTS[16];
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-4">
+      <Card>
+        <h3 className="font-bold mb-4 text-center">🪂 Plinko</h3>
+
+        {/* Tabuleiro visual */}
+        <div className="relative bg-bg4 rounded-card2 p-4 mb-4 overflow-hidden" style={{ minHeight: '220px' }}>
+          {/* Pinos */}
+          <div className="flex flex-col gap-2 items-center">
+            {Array.from({ length: Math.min(rows, 8) }, (_, r) => (
+              <div key={r} className="flex gap-3 justify-center">
+                {Array.from({ length: r + 2 }, (_, c) => (
+                  <div key={c} className="w-2 h-2 rounded-full bg-border2" />
+                ))}
+              </div>
+            ))}
+          </div>
+
+          {/* Bola */}
+          <AnimatePresence>
+            {dropping && (
+              <motion.div
+                className="absolute text-xl"
+                initial={{ top: 0, left: '50%', x: '-50%' }}
+                animate={{ top: ballPos !== null ? '78%' : '40%', left: ballPos !== null ? `${(ballPos / (mults.length - 1)) * 90 + 5}%` : '50%' }}
+                transition={{ duration: 0.8, ease: 'easeIn' }}
+              >
+                ⚪
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Multiplicadores */}
+        <div className="flex gap-1 mb-4 overflow-x-auto pb-1">
+          {mults.map((m, i) => (
+            <div key={i}
+              className={`flex-1 min-w-[36px] text-center py-2 rounded-lg text-xs font-bold transition-all
+                ${result && result.position === i ? 'scale-110 ring-2 ring-white' : ''}`}
+              style={{ background: multColor(m) + '33', color: multColor(m), border: `1px solid ${multColor(m)}55` }}>
+              {m}x
+            </div>
+          ))}
+        </div>
+
+        {result && !dropping && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4 text-center">
+            <Badge color={result.winPoints > 0 ? 'green' : 'red'}>
+              {result.winPoints > 0 ? `✅ ${result.multiplier}x → +${formatPoints(result.winPoints)}` : `❌ ${result.multiplier}x (sem ganho)`}
+            </Badge>
+          </motion.div>
+        )}
+
+        {/* Controles */}
+        <div className="flex gap-2 mb-3">
+          {[8, 12, 16].map(r => (
+            <button key={r} disabled={dropping} onClick={() => setRows(r)}
+              className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all
+                ${rows === r ? 'bg-orange text-black border-orange' : 'bg-bg4 text-text2 border-border2 hover:border-orange disabled:opacity-40'}`}>
+              {r} linhas
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-3 mb-3">
+          <input type="number" min="1" value={bet} disabled={dropping}
+            onChange={e => setBet(Math.max(1, +e.target.value))}
+            className="flex-1 bg-bg3 border border-border2 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none focus:border-orange" />
+          {[10, 50, 100, 500].map(v => (
+            <button key={v} disabled={dropping} onClick={() => setBet(v)}
+              className="px-2.5 py-2 rounded-lg bg-bg4 border border-border text-xs font-semibold hover:border-orange transition-colors disabled:opacity-40">
+              {v}
+            </button>
+          ))}
+        </div>
+
+        <Button onClick={drop} loading={dropping} className="w-full py-3">
+          🪂 Soltar a Bola — {formatPoints(bet)}
+        </Button>
+      </Card>
+    </div>
+  );
+}
+
+// ── VÍDEO POKER ────────────────────────────────────────────────────────────────
+const HAND_LABELS = {
+  'royal-flush':    { label: '🏆 Royal Flush',       color: '#f59e0b' },
+  'straight-flush': { label: '🌟 Straight Flush',    color: '#8b5cf6' },
+  'four-of-a-kind': { label: '💎 Quadra',            color: '#3b82f6' },
+  'full-house':     { label: '🏠 Full House',        color: '#10b981' },
+  'flush':          { label: '🌊 Flush',             color: '#10b981' },
+  'straight':       { label: '📈 Sequência',         color: '#10b981' },
+  'three-of-a-kind':{ label: '🎯 Trinca',            color: '#6b7280' },
+  'two-pair':       { label: '✌️ Dois Pares',        color: '#6b7280' },
+  'jacks-or-better':{ label: '👑 Par Alto',          color: '#6b7280' },
+  'nothing':        { label: '❌ Sem Jogo',          color: '#ef4444' },
+};
+const PAYOUT_TABLE = [
+  { hand: 'royal-flush',    payout: 800 },
+  { hand: 'straight-flush', payout: 50  },
+  { hand: 'four-of-a-kind', payout: 25  },
+  { hand: 'full-house',     payout: 9   },
+  { hand: 'flush',          payout: 6   },
+  { hand: 'straight',       payout: 4   },
+  { hand: 'three-of-a-kind',payout: 3   },
+  { hand: 'two-pair',       payout: 2   },
+  { hand: 'jacks-or-better',payout: 1   },
+];
+
+function PokerCard({ card, held, faceDown, onClick }) {
+  if (!card) return <div className="w-16 h-24 rounded-lg bg-bg4 border border-border2" />;
+  return (
+    <motion.div whileHover={!faceDown ? { y: -4 } : {}} onClick={onClick}
+      className={`relative w-16 h-24 rounded-lg flex flex-col items-center justify-center text-sm font-bold
+        cursor-pointer select-none border-2 transition-all
+        ${held ? 'border-orange shadow-glow' : 'border-border2 hover:border-border'}
+        ${faceDown ? 'bg-gradient-to-br from-blue/40 to-purple/40' : card.red ? 'bg-white text-red-600' : 'bg-white text-gray-900'}`}
+      style={{ minWidth: '64px' }}>
+      {!faceDown && (
+        <>
+          <span className="text-lg">{card.v}</span>
+          <span className="text-base">{card.s}</span>
+        </>
+      )}
+      {held && <span className="absolute -top-5 text-[10px] font-bold text-orange">HOLD</span>}
+    </motion.div>
+  );
+}
+
+export function VideoPokerGame() {
+  const { refresh } = useGame();
+  const [bet, setBet] = useState(50);
+  const [phase, setPhase] = useState('bet'); // bet | hold | done
+  const [hand, setHand] = useState([]);
+  const [deck, setDeck] = useState([]);
+  const [held, setHeld] = useState([]);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const deal = async () => {
+    setLoading(true);
+    setResult(null);
+    setHeld([]);
+    try {
+      const { data } = await api.post('/games/poker/deal', { betPoints: bet });
+      setHand(data.hand);
+      setDeck(data.deck);
+      setPhase('hold');
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleHold = (i) => {
+    if (phase !== 'hold') return;
+    setHeld(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
+  };
+
+  const draw = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.post('/games/poker/hold', { hand, deck, held, betPoints: bet });
+      setHand(data.finalHand);
+      setResult(data);
+      setPhase('done');
+      refresh();
+      if (data.winPoints > 0) toast.success(`🃏 ${HAND_LABELS[data.handName]?.label}! +${formatPoints(data.winPoints)}`);
+      else toast.error('Sem jogo desta vez');
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-4">
+      {/* Tabela de pagamentos */}
+      <Card className="p-3">
+        <div className="grid grid-cols-3 gap-1">
+          {PAYOUT_TABLE.map(p => {
+            const info = HAND_LABELS[p.hand];
+            const isWinner = result?.handName === p.hand;
+            return (
+              <div key={p.hand} className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-all
+                ${isWinner ? 'bg-orange/20 ring-1 ring-orange' : 'bg-bg4'}`}>
+                <span className="text-text2 truncate">{info?.label}</span>
+                <span className="font-bold text-orange ml-1 flex-shrink-0">{p.payout}x</span>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card>
+        {/* Mão de cartas */}
+        <div className="flex justify-center gap-2 mb-5 mt-2" style={{ minHeight: '110px' }}>
+          {phase === 'bet'
+            ? Array.from({ length: 5 }, (_, i) => <PokerCard key={i} card={null} faceDown held={false} />)
+            : hand.map((card, i) => (
+                <PokerCard key={i} card={card} held={held.includes(i)} faceDown={false}
+                  onClick={() => phase === 'hold' && toggleHold(i)} />
+              ))
+          }
+        </div>
+
+        {result && (
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-4">
+            <div className="text-lg font-bold mb-1" style={{ color: HAND_LABELS[result.handName]?.color }}>
+              {HAND_LABELS[result.handName]?.label}
+            </div>
+            <Badge color={result.winPoints > 0 ? 'green' : 'red'}>
+              {result.winPoints > 0 ? `+${formatPoints(result.winPoints)} (${result.multiplier}x)` : 'Sem ganho'}
+            </Badge>
+          </motion.div>
+        )}
+
+        {phase === 'hold' && (
+          <p className="text-center text-text2 text-xs mb-3">
+            Clica nas cartas que queres guardar. As outras serão substituídas.
+          </p>
+        )}
+
+        <div className="flex gap-3 mb-3">
+          <input type="number" min="1" value={bet} disabled={phase !== 'bet' || loading}
+            onChange={e => setBet(Math.max(1, +e.target.value))}
+            className="flex-1 bg-bg3 border border-border2 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none focus:border-orange" />
+          {[10, 50, 100, 500].map(v => (
+            <button key={v} disabled={phase !== 'bet' || loading} onClick={() => setBet(v)}
+              className="px-2.5 py-2 rounded-lg bg-bg4 border border-border text-xs font-semibold hover:border-orange transition-colors disabled:opacity-40">
+              {v}
+            </button>
+          ))}
+        </div>
+
+        {phase === 'bet' && <Button onClick={deal} loading={loading} className="w-full py-3">🃏 Distribuir — {formatPoints(bet)}</Button>}
+        {phase === 'hold' && <Button onClick={draw} loading={loading} className="w-full py-3">🎴 Trocar Cartas</Button>}
+        {phase === 'done' && <Button onClick={() => { setPhase('bet'); setHand([]); setResult(null); setHeld([]); }} className="w-full py-3">🔄 Nova Mão</Button>}
+      </Card>
+    </div>
+  );
+}
+
+// ── SLOTS ──────────────────────────────────────────────────────────────────────
+const SYMBOL_COLORS = {
+  cherry:'#ef4444', lemon:'#eab308', orange:'#f97316', grape:'#8b5cf6',
+  melon:'#10b981', bell:'#f59e0b', star:'#3b82f6', diamond:'#06b6d4', seven:'#dc2626',
+};
+
+export function SlotsGame() {
+  const { refresh } = useGame();
+  const [bet, setBet] = useState(50);
+  const [spinning, setSpinning] = useState(false);
+  const [displayReels, setDisplayReels] = useState([null, null, null]);
+  const [result, setResult] = useState(null);
+  const [animatingReels, setAnimatingReels] = useState([false, false, false]);
+
+  const SYMBOLS = ['🍒','🍋','🍊','🍇','🍈','🔔','⭐','💎','7️⃣'];
+
+  const spin = async () => {
+    setSpinning(true);
+    setResult(null);
+    // Anima os reels com símbolos aleatórios antes do resultado real
+    setAnimatingReels([true, true, true]);
+    const interval = setInterval(() => {
+      setDisplayReels([
+        { emoji: SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)] },
+        { emoji: SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)] },
+        { emoji: SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)] },
+      ]);
+    }, 80);
+
+    try {
+      const { data } = await api.post('/games/slots', { betPoints: bet });
+      // Para os reels um por um com delay
+      setTimeout(() => {
+        clearInterval(interval);
+        setAnimatingReels([false, true, true]);
+        setDisplayReels([data.reels[0], data.reels[1], data.reels[2]]);
+        setTimeout(() => {
+          setAnimatingReels([false, false, true]);
+          setTimeout(() => {
+            setAnimatingReels([false, false, false]);
+            setResult(data);
+            refresh();
+            if (data.winPoints > 0) toast.success(`🎰 ${data.multiplier}x! +${formatPoints(data.winPoints)}`);
+            else toast.error('Tenta de novo!');
+            setSpinning(false);
+          }, 400);
+        }, 400);
+      }, 1200);
+    } catch (err) {
+      clearInterval(interval);
+      setSpinning(false);
+      setAnimatingReels([false, false, false]);
+      toast.error(err.response?.data?.error || err.message);
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto space-y-4">
+      <Card className="text-center" style={{ background: 'radial-gradient(circle at 50% 0%, #1a0f20, #0f0a14)' }}>
+        <h3 className="font-bold mb-4 text-orange text-lg">🎰 Slots</h3>
+
+        {/* Máquina */}
+        <div className="bg-bg4 border-2 border-border2 rounded-card2 p-4 mb-4 mx-auto max-w-xs"
+          style={{ boxShadow: 'inset 0 4px 20px rgba(0,0,0,.4)' }}>
+          <div className="flex gap-3 justify-center items-center">
+            {displayReels.map((reel, i) => {
+              const isAnim = animatingReels[i];
+              const hasReel = reel && reel.emoji;
+              return (
+                <div key={i} className="w-20 h-20 bg-bg3 border-2 border-border rounded-xl flex items-center justify-center"
+                  style={{ boxShadow: 'inset 0 2px 8px rgba(0,0,0,.5)' }}>
+                  <motion.span className="text-4xl select-none"
+                    animate={isAnim ? { y: [-8, 8], opacity: [0.6, 1] } : {}}
+                    transition={isAnim ? { duration: 0.12, repeat: Infinity, repeatType: 'reverse' } : {}}>
+                    {hasReel ? reel.emoji : '❓'}
+                  </motion.span>
+                </div>
+              );
+            })}
+          </div>
+          {/* Linha da vitória */}
+          <div className="mt-2 flex items-center gap-1 justify-center">
+            <div className="flex-1 h-px bg-orange/40" />
+            <span className="text-orange text-[10px] font-bold">LINHA</span>
+            <div className="flex-1 h-px bg-orange/40" />
+          </div>
+        </div>
+
+        {result && !spinning && (
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="mb-4">
+            <Badge color={result.winPoints > 0 ? 'green' : 'red'} className="text-sm">
+              {result.winPoints > 0 ? `🎉 ${result.multiplier}x → +${formatPoints(result.winPoints)}!` : '😔 Sem ganho — tenta de novo!'}
+            </Badge>
+          </motion.div>
+        )}
+
+        {/* Tabela de símbolos */}
+        <div className="grid grid-cols-3 gap-1.5 mb-4 text-left">
+          {[
+            { s:'🍒', n:'Cherry',  m:'2x', id:'cherry' },
+            { s:'🍋', n:'Lemon',   m:'3x', id:'lemon'  },
+            { s:'🍊', n:'Orange',  m:'5x', id:'orange' },
+            { s:'🍇', n:'Grape',   m:'8x', id:'grape'  },
+            { s:'🔔', n:'Bell',    m:'20x',id:'bell'   },
+            { s:'⭐', n:'Star',    m:'40x',id:'star'   },
+            { s:'💎', n:'Diamond', m:'100x',id:'diamond'},
+            { s:'7️⃣', n:'Lucky 7', m:'250x',id:'seven' },
+          ].map(sym => (
+            <div key={sym.id} className="flex items-center gap-1.5 bg-bg4 rounded-lg px-2 py-1">
+              <span className="text-lg">{sym.s}</span>
+              <div>
+                <div className="text-[10px] text-text3">{sym.n}</div>
+                <div className="text-[11px] font-bold" style={{ color: SYMBOL_COLORS[sym.id] }}>{sym.m}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-2 mb-3 justify-center">
+          <input type="number" min="1" value={bet} disabled={spinning}
+            onChange={e => setBet(Math.max(1, +e.target.value))}
+            className="w-28 bg-bg3 border border-border2 text-white rounded-[10px] px-3 py-2 text-sm text-center focus:outline-none focus:border-orange" />
+          {[10, 50, 100].map(v => (
+            <button key={v} disabled={spinning} onClick={() => setBet(v)}
+              className="px-2.5 py-2 rounded-lg bg-bg4 border border-border text-xs font-semibold hover:border-orange transition-colors disabled:opacity-40">
+              {v}
+            </button>
+          ))}
+        </div>
+
+        <Button onClick={spin} loading={spinning} className="w-full py-3">
+          🎰 {spinning ? 'A girar...' : `Apostar — ${formatPoints(bet)}`}
+        </Button>
+      </Card>
+    </div>
+  );
+}

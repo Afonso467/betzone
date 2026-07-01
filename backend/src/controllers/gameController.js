@@ -6,6 +6,10 @@ const {
   generateMinePositions, calcMinesMultiplier,
   generateCrashPoint, rollCaseItem,
   spinRoulette, rouletteColor, checkRouletteBet,
+  rollDice, calcDiceMultiplier, checkDice,
+  dropPlinko,
+  evaluatePokerHand, POKER_HANDS,
+  spinSlots,
   XP_REWARDS, createShuffledDeck, handTotal,
 } = require('../utils/rng');
 
@@ -311,4 +315,100 @@ const getUserState = asyncHandler(async (req, res) => {
   res.json({ user, stats, history });
 });
 
-module.exports = { minesStart, minesReveal, minesCashout, coinflip, crashJoin, crashCashout, blackjackDeal, blackjackAction, caseOpen, getCasesWithItems, roulette, getUserState };
+// ── DICE (HiLo) ───────────────────────────────────────────────────────────────
+const dice = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const { betPoints, target, direction } = req.body;
+  if (!['over', 'under'].includes(direction)) throw createError('Direção inválida (over/under)', 400);
+  if (target < 2 || target > 98) throw createError('Target deve estar entre 2 e 98', 400);
+  await debit(userId, betPoints, `Dice — ${betPoints} pts`);
+  const roll = rollDice();
+  const won  = checkDice(roll, target, direction);
+  const multiplier = calcDiceMultiplier(target, direction);
+  let winPoints = 0;
+  if (won) {
+    winPoints = Math.round(betPoints * multiplier);
+    await credit(userId, winPoints, `Dice vitória — ${roll} (${direction} ${target})`);
+    await UserModel.addXP(userId, XP_REWARDS.dice_win);
+    await UserModel.incrementWins(userId);
+  } else {
+    await UserModel.incrementLosses(userId);
+  }
+  await GameModel.createMatch({ userId, gameType: 'dice', betAmount: betPoints, winAmount: winPoints, multiplier: won ? multiplier : 0, result: won ? 'win' : 'loss', meta: { roll, target, direction } });
+  const user = await getUser(userId);
+  res.json({ roll, won, winPoints, multiplier, points: user.points });
+});
+
+// ── PLINKO ────────────────────────────────────────────────────────────────────
+const plinko = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const { betPoints, rows = 16 } = req.body;
+  const validRows = [8, 12, 16];
+  if (!validRows.includes(Number(rows))) throw createError('Linhas inválidas (8, 12 ou 16)', 400);
+  await debit(userId, betPoints, `Plinko — ${betPoints} pts`);
+  const { position, multiplier, path } = dropPlinko(Number(rows));
+  const winPoints = Math.round(betPoints * multiplier);
+  if (winPoints > 0) {
+    await credit(userId, winPoints, `Plinko — ${multiplier}x`);
+    await UserModel.addXP(userId, XP_REWARDS.plinko_win);
+    await UserModel.incrementWins(userId);
+  } else {
+    await UserModel.incrementLosses(userId);
+  }
+  await GameModel.createMatch({ userId, gameType: 'plinko', betAmount: betPoints, winAmount: winPoints, multiplier, result: winPoints > 0 ? 'win' : 'loss', meta: { rows, position, path } });
+  const user = await getUser(userId);
+  res.json({ position, multiplier, path, winPoints, points: user.points });
+});
+
+// ── VÍDEO POKER ───────────────────────────────────────────────────────────────
+// Funciona em 2 fases: deal (recebe 5 cartas) → hold (envia quais guardar, recebe substituições)
+const pokerDeal = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const { betPoints } = req.body;
+  await debit(userId, betPoints, `Vídeo Poker — ${betPoints} pts`);
+  const deck = createShuffledDeck();
+  const hand = deck.slice(0, 5);
+  const rest = deck.slice(5);
+  res.json({ hand, deck: rest, betPoints });
+});
+
+const pokerHold = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const { hand, deck, held, betPoints } = req.body;
+  // held = array de índices a guardar (0-4), ex: [0, 2] = guarda 1ª e 3ª cartas
+  const finalHand = hand.map((card, i) => held.includes(i) ? card : deck.shift());
+  const handName  = evaluatePokerHand(finalHand);
+  const multiplier = POKER_HANDS[handName] || 0;
+  const winPoints  = Math.round(betPoints * multiplier);
+  if (winPoints > 0) {
+    await credit(userId, winPoints, `Vídeo Poker — ${handName} (${multiplier}x)`);
+    await UserModel.addXP(userId, XP_REWARDS.poker_win);
+    await UserModel.incrementWins(userId);
+  } else {
+    await UserModel.incrementLosses(userId);
+  }
+  await GameModel.createMatch({ userId, gameType: 'video_poker', betAmount: betPoints, winAmount: winPoints, multiplier, result: winPoints > 0 ? 'win' : 'loss', meta: { handName, finalHand } });
+  const user = await getUser(userId);
+  res.json({ finalHand, handName, multiplier, winPoints, points: user.points });
+});
+
+// ── SLOTS ─────────────────────────────────────────────────────────────────────
+const slots = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const { betPoints } = req.body;
+  await debit(userId, betPoints, `Slots — ${betPoints} pts`);
+  const { reels, multiplier } = spinSlots();
+  const winPoints = Math.round(betPoints * multiplier);
+  if (winPoints > 0) {
+    await credit(userId, winPoints, `Slots — ${multiplier}x`);
+    await UserModel.addXP(userId, XP_REWARDS.slots_win);
+    await UserModel.incrementWins(userId);
+  } else {
+    await UserModel.incrementLosses(userId);
+  }
+  await GameModel.createMatch({ userId, gameType: 'slots', betAmount: betPoints, winAmount: winPoints, multiplier, result: winPoints > 0 ? 'win' : 'loss', meta: { reels: reels.map(r => r.id) } });
+  const user = await getUser(userId);
+  res.json({ reels, multiplier, winPoints, points: user.points });
+});
+
+module.exports = { minesStart, minesReveal, minesCashout, coinflip, crashJoin, crashCashout, blackjackDeal, blackjackAction, caseOpen, getCasesWithItems, roulette, dice, plinko, pokerDeal, pokerHold, slots, getUserState };
