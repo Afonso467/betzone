@@ -604,7 +604,6 @@ export function RouletteGame() {
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState(null);
   const [rotation, setRotation] = useState(0);
-  const [ballAngle, setBallAngle] = useState(0);
 
   const totalStake = Object.values(bets).reduce((a, b) => a + b, 0);
 
@@ -651,12 +650,6 @@ export function RouletteGame() {
       setRotation(prev => {
         const fullRotations = Math.ceil(prev / 360) * 360 + 360 * 5;
         return fullRotations - (idx * segAngle + segAngle / 2);
-      });
-      // A bola gira em sentido contrário para dar o efeito visual,
-      // mas para no ângulo oposto correto (posição fixa relativa à roda).
-      setBallAngle(prev => {
-        const fullRotations = Math.ceil(Math.abs(prev) / 360) * 360 + 360 * 7;
-        return -(fullRotations - (idx * segAngle + segAngle / 2));
       });
 
       setTimeout(() => {
@@ -722,16 +715,11 @@ export function RouletteGame() {
                 ))}
               </motion.div>
 
-              {/* Bola */}
-              <motion.div
-                className="absolute"
-                style={{ inset: 0 }}
-                animate={{ rotate: ballAngle }}
-                transition={{ duration: 4, ease: [0.1, 0.7, 0.2, 1] }}
-              >
+              {/* Bola — fixa no topo, a roda roda por baixo dela */}
+              <div className="absolute" style={{ inset: 0 }}>
                 <div className="absolute left-1/2 -translate-x-1/2 w-3 h-3 rounded-full"
-                  style={{ top: '3%', background: 'radial-gradient(circle at 35% 30%, #fff, #ccc)', boxShadow: '0 1px 4px rgba(0,0,0,.6)' }} />
-              </motion.div>
+                  style={{ top: '7%', background: 'radial-gradient(circle at 35% 30%, #fff, #ccc)', boxShadow: '0 1px 4px rgba(0,0,0,.6)' }} />
+              </div>
 
               {/* Cubo central dourado */}
               <div className="absolute rounded-full flex items-center justify-center z-10"
