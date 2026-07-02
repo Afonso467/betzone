@@ -5,8 +5,6 @@ import api from '../../utils/api';
 import { useGame } from '../../context/AuthContext';
 import { Button, Card, Input, Select, Badge, Spinner } from '../ui';
 import { formatPoints, RARITY_COLORS, RARITY_BG } from '../../utils/constants';
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Plane, Rocket, DollarSign } from 'lucide-react'; // Ícones modernos
 
 // ── MINES ────────────────────────────────────────────────────────────────────
