@@ -5,8 +5,7 @@ import api from '../../utils/api';
 import { useGame } from '../../context/AuthContext';
 import { Button, Card, Input, Select, Badge, Spinner } from '../ui';
 import { formatPoints, RARITY_COLORS, RARITY_BG } from '../../utils/constants';
-import { Plane, Rocket, DollarSign } from 'lucide-react'; // Ícones modernos
-import { Shield, Percentage, Zap, ArrowDown, ArrowUp } from 'lucide-react';
+import { Plane, Rocket, DollarSign, Shield, Zap, ArrowDown, ArrowUp } from 'lucide-react';
 
 // ── MINES ────────────────────────────────────────────────────────────────────
 export function MinesGame() {
@@ -1190,11 +1189,12 @@ export function DiceGame() {
 
         {/* Stats Grid Estilizada */}
         <div className="grid grid-cols-3 gap-2.5 mb-6">
+          {/* Altera o bloco da Chance para este formato limpo: */}
           <div className="bg-[#161d2a] border border-slate-800 p-2.5 rounded-xl text-center">
             <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1 mb-0.5">
-              <Shield size={12} /> Alvo
+              <span className="text-orange-400 font-black text-xs">%</span> Chance
             </span>
-            <span className="text-sm font-black text-white">{target}</span>
+            <span className="text-sm font-black text-orange-400 text-orange">{chance}%</span>
           </div>
           <div className="bg-[#161d2a] border border-slate-800 p-2.5 rounded-xl text-center">
             <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1 mb-0.5">
