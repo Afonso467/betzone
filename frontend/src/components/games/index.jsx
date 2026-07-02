@@ -135,59 +135,124 @@ export function CoinflipGame() {
   const [choice, setChoice] = useState(null);
   const [flipping, setFlipping] = useState(false);
   const [result, setResult] = useState(null);
+  
+  // Estado para controlar visualmente qual face está virada para o utilizador durante e após o giro
+  const [visualFace, setVisualFace] = useState('heads'); 
 
   const flip = async () => {
     if (!choice) return toast.error('Escolhe Cara ou Coroa');
+    
     setFlipping(true);
     setResult(null);
+
+    // 1. Inicia um efeito alternado rápido enquanto a API responde para simular a rotação rápida das faces
+    const faceInterval = setInterval(() => {
+      setVisualFace(prev => (prev === 'heads' ? 'tails' : 'heads'));
+    }, 150);
+
     try {
       const { data } = await api.post('/games/coinflip', { betPoints: bet, choice });
+      
+      // Para o ciclo rápido assim que temos a resposta real do servidor
+      clearInterval(faceInterval);
+
+      // 2. Sincroniza imediatamente o lado visual final com a resposta exata do backend
+      setVisualFace(data.result);
+
+      // 3. Aguarda o término da animação do Framer Motion antes de exibir os painéis de sucesso/erro
       setTimeout(() => {
         setResult(data);
         setFlipping(false);
         refresh();
         if (data.won) toast.success(`🎉 Ganhastes! +${formatPoints(data.winPoints)}`);
         else toast.error(`😢 Perdeste ${formatPoints(bet)}`);
-      }, 900);
-    } catch (err) { setFlipping(false); toast.error(err.response?.data?.error || err.message); }
+      }, 900); // Sincronizado com os 0.9s da transição visual
+
+    } catch (err) {
+      clearInterval(faceInterval);
+      setFlipping(false);
+      toast.error(err.response?.data?.error || err.message);
+    }
   };
 
   return (
     <div className="max-w-md mx-auto">
       <Card className="text-center">
+        
+        {/* Container Animado da Moeda */}
         <motion.div
-          animate={flipping ? { rotateY: [0, 720] } : {}}
-          transition={{ duration: 0.9, ease: 'easeOut' }}
-          className="w-32 h-32 rounded-full mx-auto mb-6 flex items-center justify-center text-5xl border-4"
+          animate={flipping ? { 
+            rotateY: [0, 180, 360, 540, 720],
+            scale: [1, 1.15, 1.2, 1.05, 1] // Dá um efeito 3D de saltar em direção ao ecrã
+          } : {}}
+          transition={{ duration: 0.9, ease: 'easeInOut' }}
+          className="w-32 h-32 rounded-full mx-auto mb-6 flex items-center justify-center text-5xl border-4 select-none shadow-lg"
           style={{
-            background: result ? (result.result === 'heads' ? 'linear-gradient(135deg,#d4af37,#f5d563)' : 'linear-gradient(135deg,#6b7280,#9ca3af)') : 'var(--bg4)',
-            borderColor: result ? (result.result === 'heads' ? '#d4af37' : '#6b7280') : 'var(--border2)',
+            // O fundo adapta-se em tempo real com base no estado visual interno da moeda
+            background: visualFace === 'heads' 
+              ? 'linear-gradient(135deg, #d4af37, #f5d563)' 
+              : 'linear-gradient(135deg, #6b7280, #9ca3af)',
+            borderColor: visualFace === 'heads' ? '#d4af37' : '#6b7280',
           }}
         >
-          {flipping ? '🪙' : result ? (result.result === 'heads' ? '👑' : '🦅') : '🪙'}
+          {/* Mostra dinamicamente a Coroa ou a Cara mesmo enquanto gira */}
+          {visualFace === 'heads' ? '👑' : '🦅'}
         </motion.div>
 
+        {/* Seleção de Lado */}
         <div className="flex gap-3 justify-center mb-5">
-          {[{id:'heads',icon:'👑',label:'Cara'},{id:'tails',icon:'🦅',label:'Coroa'}].map(c => (
-            <button key={c.id} onClick={() => setChoice(c.id)}
+          {[
+            { id: 'heads', icon: '👑', label: 'Cara' },
+            { id: 'tails', icon: '🦅', label: 'Coroa' }
+          ].map(c => (
+            <button 
+              key={c.id} 
+              onClick={() => !flipping && setChoice(c.id)}
+              disabled={flipping}
               className={`flex-1 py-3 rounded-[10px] font-bold border-2 text-sm transition-all
-                ${choice === c.id ? 'border-orange bg-orange/10 text-orange' : 'border-border2 bg-bg4 hover:border-border text-text2'}`}>
+                ${choice === c.id 
+                  ? 'border-orange bg-orange/10 text-orange' 
+                  : 'border-border2 bg-bg4 hover:border-border text-text2'} 
+                ${flipping ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
               {c.icon} {c.label}
             </button>
           ))}
         </div>
 
-        <Input label="💎 Aposta (pts)" type="number" min="1" step="1" value={bet}
-          onChange={e => setBet(+e.target.value)} disabled={flipping} />
-        <Button onClick={flip} loading={flipping} disabled={!choice} className="w-full py-3 mt-1">
+        {/* Input de Valor */}
+        <Input 
+          label="💎 Aposta (pts)" 
+          type="number" 
+          min="1" 
+          step="1" 
+          value={bet}
+          onChange={e => setBet(+e.target.value)} 
+          disabled={flipping} 
+        />
+        
+        {/* Botão de Ação */}
+        <Button 
+          onClick={flip} 
+          loading={flipping} 
+          disabled={!choice || flipping} 
+          className="w-full py-3 mt-4 font-bold tracking-wide"
+        >
           🎯 Lançar Moeda
         </Button>
 
+        {/* Mensagem de Feedback de Resultado */}
         <AnimatePresence>
           {result && (
             <motion.div
-              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-              className={`mt-4 p-3 rounded-[10px] font-bold ${result.won ? 'bg-success/10 text-success' : 'bg-red/10 text-red'}`}
+              initial={{ opacity: 0, y: 8 }} 
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className={`mt-4 p-3 rounded-[10px] font-bold border ${
+                result.won 
+                  ? 'bg-success/10 text-success border-success/20' 
+                  : 'bg-red/10 text-red border-red/20'
+              }`}
             >
               {result.won ? `🎉 Ganhastes ${formatPoints(result.winPoints)}!` : `😢 Perdeste ${formatPoints(bet)}`}
             </motion.div>
