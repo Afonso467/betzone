@@ -6,6 +6,8 @@ import { useGame } from '../../context/AuthContext';
 import { Button, Card, Input, Select, Badge, Spinner } from '../ui';
 import { formatPoints, RARITY_COLORS, RARITY_BG } from '../../utils/constants';
 import { Plane, Rocket, DollarSign } from 'lucide-react'; // Ícones modernos
+import { Shield, Percentage, Zap, ArrowDown, ArrowUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
 
 // ── MINES ────────────────────────────────────────────────────────────────────
 export function MinesGame() {
@@ -1119,89 +1121,206 @@ export function DiceGame() {
   const [direction, setDirection] = useState('over');
   const [rolling, setRolling] = useState(false);
   const [result, setResult] = useState(null);
+  const [displayRoll, setDisplayRoll] = useState(50); // Para o efeito de embaralhar números
 
   const chance = direction === 'over' ? (100 - target) : (target - 1);
   const edge = 0.01;
   const multiplier = chance > 0 ? Math.floor((1 / (chance / 100)) * (1 - edge) * 100) / 100 : 0;
+
+  // Efeito visual de embaralhar números enquanto rola (Efeito clássico de casino)
+  useEffect(() => {
+    let interval;
+    if (rolling) {
+      interval = setInterval(() => {
+        setDisplayRoll(Math.floor(Math.random() * 99) + 1);
+      }, 60);
+    }
+    return () => clearInterval(interval);
+  }, [rolling]);
 
   const roll = async () => {
     setRolling(true);
     setResult(null);
     try {
       const { data } = await api.post('/games/dice', { betPoints: bet, target, direction });
-      setResult(data);
-      refresh();
+      
+      // Pequeno delay intencional na animação para criar suspense
+      setTimeout(() => {
+        setResult(data);
+        setDisplayRoll(data.roll);
+        refresh();
+        if (data.won) {
+          toast.success(`🎉 Ganhastes +${formatPoints(data.winPoints)}!`);
+        } else {
+          toast.error('❌ Não foi desta vez!');
+        }
+        setRolling(false);
+      }, 700);
+
     } catch (err) {
       toast.error(err.response?.data?.error || err.message);
-    } finally {
       setRolling(false);
     }
   };
 
   return (
-    <div className="max-w-lg mx-auto space-y-4">
-      <Card>
-        <h3 className="font-bold mb-4 text-center">🎲 Dice — escolhe o teu alvo</h3>
-
-        {/* Resultado */}
-        {result && (
-          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className={`text-center py-6 mb-4 rounded-[14px] border-2 ${result.won ? 'bg-success/10 border-success/30' : 'bg-red/10 border-red/30'}`}>
-            <div className="text-5xl font-black mb-1" style={{ color: result.won ? 'var(--green)' : '#ef4444' }}>{result.roll}</div>
-            <Badge color={result.won ? 'green' : 'red'}>
-              {result.won ? `✅ Ganhastes ${formatPoints(result.winPoints)}!` : '❌ Perdeste'}
-            </Badge>
-          </motion.div>
-        )}
-
-        {/* Barra de target */}
-        <div className="mb-4">
-          <div className="flex justify-between text-xs text-text2 mb-1">
-            <span>Alvo: <strong className="text-white">{target}</strong></span>
-            <span>Chance: <strong className="text-orange">{chance}%</strong></span>
-            <span>Multiplicador: <strong className="text-orange">{multiplier}x</strong></span>
+    <div className="max-w-xl mx-auto space-y-4">
+      <Card className="bg-[#0f141c] border border-slate-800 text-white">
+        
+        {/* Ecrã Superior de Live Roll */}
+        <div className="relative h-40 bg-[#0a0d14] rounded-xl border border-slate-900 flex flex-col items-center justify-center overflow-hidden mb-6 shadow-inner">
+          <div className="absolute inset-0 opacity-5 bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:14px_14px]" />
+          
+          <AnimatePresence mode="wait">
+            <motion.div 
+              key={displayRoll}
+              initial={rolling ? { y: -10, opacity: 0.5 } : { scale: 0.9 }}
+              animate={{ y: 0, scale: 1, opacity: 1 }}
+              className="text-7xl font-black tracking-tighter filter drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+              style={{
+                color: result ? (result.won ? '#10b981' : '#ef4444') : '#f59e0b'
+              }}
+            >
+              {displayRoll.toFixed(0)}
+            </motion.div>
+          </AnimatePresence>
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-widest mt-1">
+            {rolling ? 'A Sortear...' : result ? (result.won ? 'Vitória!' : 'Derrota') : 'Escolha o Alvo'}
           </div>
-          <div className="relative h-10 bg-bg4 rounded-full overflow-hidden border border-border2">
-            <div className={`absolute inset-y-0 left-0 ${direction === 'under' ? 'bg-success/40' : 'bg-red/30'}`}
-              style={{ width: `${target}%` }} />
-            <div className={`absolute inset-y-0 right-0 ${direction === 'over' ? 'bg-success/40' : 'bg-red/30'}`}
-              style={{ width: `${100 - target}%` }} />
-            <div className="absolute inset-y-0 flex items-center" style={{ left: `${target}%`, transform: 'translateX(-50%)' }}>
-              <div className="w-1 h-full bg-white/60" />
+        </div>
+
+        {/* Stats Grid Estilizada */}
+        <div className="grid grid-cols-3 gap-2.5 mb-6">
+          <div className="bg-[#161d2a] border border-slate-800 p-2.5 rounded-xl text-center">
+            <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1 mb-0.5">
+              <Shield size={12} /> Alvo
+            </span>
+            <span className="text-sm font-black text-white">{target}</span>
+          </div>
+          <div className="bg-[#161d2a] border border-slate-800 p-2.5 rounded-xl text-center">
+            <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1 mb-0.5">
+              <Percentage size={12} /> Chance
+            </span>
+            <span className="text-sm font-black text-orange-400 text-orange">{chance}%</span>
+          </div>
+          <div className="bg-[#161d2a] border border-slate-800 p-2.5 rounded-xl text-center">
+            <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1 mb-0.5">
+              <Zap size={12} /> Multiplicador
+            </span>
+            <span className="text-sm font-black text-amber-400 text-orange">{multiplier}x</span>
+          </div>
+        </div>
+
+        {/* Interactive Advanced Slider Bar */}
+        <div className="mb-8 relative pt-6">
+          <div className="relative h-4 bg-[#1a2232] rounded-full border border-slate-800 shadow-inner">
+            
+            {/* Zona Vermelha / Verde Dinâmica */}
+            <div 
+              className={`absolute inset-y-0 left-0 rounded-l-full transition-colors duration-300 ${direction === 'under' ? 'bg-emerald-500 bg-success' : 'bg-red-500'}`}
+              style={{ width: `${target}%` }}
+            />
+            <div 
+              className={`absolute inset-y-0 right-0 rounded-r-full transition-colors duration-300 ${direction === 'over' ? 'bg-emerald-500 bg-success' : 'bg-red-500'}`}
+              style={{ width: `${100 - target}%` }}
+            />
+
+            {/* Marcador do pino central do Alvo */}
+            <div 
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 transition-all duration-150 pointer-events-none"
+              style={{ left: `${target}%` }}
+            >
+              <div className="w-5 h-7 bg-white rounded-md shadow-lg border border-slate-300 flex items-center justify-center text-[10px] font-black text-black">
+                ⋮
+              </div>
             </div>
-            <input type="range" min="2" max="98" value={target} disabled={rolling}
+
+            {/* Marcador Flutuante do Último Resultado Real */}
+            {result && !rolling && (
+              <motion.div 
+                initial={{ y: -15, opacity: 0, scale: 0.5 }}
+                animate={{ y: 0, opacity: 1, scale: 1 }}
+                className="absolute -top-10 -translate-x-1/2 z-10"
+                style={{ left: `${result.roll}%` }}
+              >
+                <div className={`px-2.5 py-1 rounded-md text-xs font-black text-white shadow-xl flex flex-col items-center ${result.won ? 'bg-emerald-600' : 'bg-red-600'}`}>
+                  {result.roll}
+                  <div className={`w-1.5 h-1.5 rotate-45 mt-[-3px] ${result.won ? 'bg-emerald-600' : 'bg-red-600'}`} />
+                </div>
+              </motion.div>
+            )}
+
+            {/* Input Range Invisível (Para clique/arrasto perfeito) */}
+            <input 
+              type="range" 
+              min="2" 
+              max="98" 
+              value={target} 
+              disabled={rolling}
               onChange={e => setTarget(+e.target.value)}
-              className="absolute inset-0 w-full opacity-0 cursor-pointer" />
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" 
+            />
+          </div>
+
+          {/* Marcadores de Escala na Base */}
+          <div className="flex justify-between text-[10px] text-slate-500 font-bold px-1 mt-2 select-none">
+            <span>0</span>
+            <span>25</span>
+            <span>50</span>
+            <span>75</span>
+            <span>100</span>
           </div>
         </div>
 
-        {/* Over / Under */}
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          <button disabled={rolling} onClick={() => setDirection('under')}
-            className={`py-3 rounded-[10px] font-bold text-sm border-2 transition-all
-              ${direction === 'under' ? 'border-orange bg-orange/10 text-orange' : 'border-border2 bg-bg4 text-text2 hover:border-border'}`}>
-            ⬇️ Under {target}
+        {/* Seleção Alternada de Direção (Over / Under) */}
+        <div className="grid grid-cols-2 gap-2.5 mb-5 bg-[#0a0d14] p-1 rounded-xl border border-slate-900">
+          <button 
+            disabled={rolling} 
+            onClick={() => setDirection('under')}
+            className={`py-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-1.5
+              ${direction === 'under' 
+                ? 'bg-[#161d2a] text-orange border border-slate-700 shadow-md' 
+                : 'bg-transparent text-slate-400 hover:text-white border border-transparent'}`}
+          >
+            <ArrowDown size={16} /> Under {target}
           </button>
-          <button disabled={rolling} onClick={() => setDirection('over')}
-            className={`py-3 rounded-[10px] font-bold text-sm border-2 transition-all
-              ${direction === 'over' ? 'border-orange bg-orange/10 text-orange' : 'border-border2 bg-bg4 text-text2 hover:border-border'}`}>
-            ⬆️ Over {target}
+          <button 
+            disabled={rolling} 
+            onClick={() => setDirection('over')}
+            className={`py-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-1.5
+              ${direction === 'over' 
+                ? 'bg-[#161d2a] text-orange border border-slate-700 shadow-md' 
+                : 'bg-transparent text-slate-400 hover:text-white border border-transparent'}`}
+          >
+            <ArrowUp size={16} /> Over {target}
           </button>
         </div>
 
-        <div className="flex gap-3 mb-3">
-          <input type="number" min="1" step="1" value={bet} disabled={rolling}
+        {/* Inputs de Quantia */}
+        <div className="flex gap-3 mb-4">
+          <input 
+            type="number" 
+            min="1" 
+            step="1" 
+            value={bet} 
+            disabled={rolling}
             onChange={e => setBet(Math.max(1, +e.target.value))}
-            className="flex-1 bg-bg3 border border-border2 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none focus:border-orange" />
+            className="flex-1 bg-[#161d2a] border border-slate-800 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none focus:border-slate-600 font-medium" 
+          />
           {[10, 50, 100, 500].map(v => (
-            <button key={v} disabled={rolling} onClick={() => setBet(v)}
-              className="px-2.5 py-2 rounded-lg bg-bg4 border border-border text-xs font-semibold hover:border-orange transition-colors disabled:opacity-40">
+            <button 
+              key={v} 
+              disabled={rolling} 
+              onClick={() => setBet(v)}
+              className="px-3.5 py-2 rounded-lg bg-[#161d2a] border border-slate-800 text-xs font-semibold hover:border-slate-600 text-slate-300 transition-colors disabled:opacity-40"
+            >
               {v}
             </button>
           ))}
         </div>
 
-        <Button onClick={roll} loading={rolling} className="w-full py-3">
+        {/* Botão de Disparo */}
+        <Button onClick={roll} loading={rolling} className="w-full py-3.5 text-sm font-bold uppercase tracking-wider">
           🎲 Lançar — {formatPoints(bet)}
         </Button>
       </Card>
