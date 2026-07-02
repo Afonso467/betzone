@@ -1189,19 +1189,20 @@ export function DiceGame() {
 
         {/* Stats Grid Estilizada */}
         <div className="grid grid-cols-3 gap-2.5 mb-6">
-          {/* Altera o bloco da Chance para este formato limpo: */}
+          <div className="bg-[#161d2a] border border-slate-800 p-2.5 rounded-xl text-center">
+            <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1 mb-0.5">
+              <Shield size={12} /> Alvo
+            </span>
+            <span className="text-sm font-black text-white">{target}</span>
+          </div>
+          
           <div className="bg-[#161d2a] border border-slate-800 p-2.5 rounded-xl text-center">
             <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1 mb-0.5">
               <span className="text-orange-400 font-black text-xs">%</span> Chance
             </span>
             <span className="text-sm font-black text-orange-400 text-orange">{chance}%</span>
           </div>
-          <div className="bg-[#161d2a] border border-slate-800 p-2.5 rounded-xl text-center">
-            <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1 mb-0.5">
-              <Percent size={12} /> Chance
-            </span>
-            <span className="text-sm font-black text-orange-400 text-orange">{chance}%</span>
-          </div>
+          
           <div className="bg-[#161d2a] border border-slate-800 p-2.5 rounded-xl text-center">
             <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1 mb-0.5">
               <Zap size={12} /> Multiplicador
