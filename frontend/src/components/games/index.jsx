@@ -1228,22 +1228,18 @@ export function PlinkoGame() {
   const { refresh } = useGame();
   const [bet, setBet] = useState(50);
   const [rows, setRows] = useState(16);
-  
-  // Array de bolas ativas no ecrã para permitir cliques múltiplos rápidos
   const [balls, setBalls] = useState([]);
-  // Guarda o último resultado para o painel inferior de estatísticas
   const [lastResult, setLastResult] = useState(null);
-  // Animação visual de impacto nos multiplicadores
   const [activeBucket, setActiveBucket] = useState(null);
 
-  // Função matemática para gerar a rota realista da bola baseada no destino final (data.position)
-  const generatePhysicsPath = (finalColumn, totalRows) => {
+  // Gera o caminho de forma fluida. Se a API ainda não respondeu, gera um caminho aleatório temporário
+  const generatePhysicsPath = (totalRows, finalColumn = null) => {
     let currentColumn = 0;
     const path = [];
     
-    // Calcula o número total de desvios para a direita que a bola TEM de fazer
-    // Num triângulo Plinko, a coluna final é exatamente o número de desvios para a direita acumulados.
-    let remainingRights = finalColumn;
+    // Se não temos a posição final ainda, escolhemos um destino aleatório temporário
+    const targetColumn = finalColumn !== null ? finalColumn : Math.floor(Math.random() * (totalRows + 1));
+    let remainingRights = targetColumn;
 
     for (let r = 0; r < totalRows; r++) {
       const remainingRows = totalRows - r;
@@ -1260,49 +1256,73 @@ export function PlinkoGame() {
         remainingRights--;
       }
 
-      // Converte a linha e coluna atual em percentagens (X, Y) dentro do tabuleiro
       const totalPegsInRow = r + 3; 
       const centerXOffset = 50; 
-      const stepX = 4.5; // Espaçamento horizontal proporcional
+      const stepX = 4.5; 
       const xPercent = centerXOffset + (currentColumn - (totalPegsInRow - 1) / 2) * stepX;
       const yPercent = ((r + 1) / (totalRows + 1)) * 82;
 
       path.push({ x: `${xPercent}%`, y: `${yPercent}%` });
     }
 
-    // Ponto de queda final dentro da caixa (alinhado perfeitamente com o multiplicador)
-    const finalX = (finalColumn / finalColumn === 0 ? 0 : (finalColumn / totalRows) * 90) + (5 + (16 - totalRows) * 0.3);
+    const finalX = (targetColumn / (targetColumn === 0 ? 1 : totalRows) * 90) + (5 + (16 - totalRows) * 0.3);
     path.push({ x: `${finalX}%`, y: '96%' });
 
-    return path;
+    return { path, targetColumn };
   };
 
   const dropBall = async () => {
-    // Geramos um ID único para cada bola para permitir múltiplos cliques sem interferência
     const ballId = Date.now() + Math.random();
     
+    // 1. ANIMAÇÃO IMEDIATA: Cria a bola no exato momento do clique com uma rota estimada
+    const initialPhysics = generatePhysicsPath(rows);
+    
+    const newBall = {
+      id: ballId,
+      keyframesX: initialPhysics.path.map(p => p.x),
+      keyframesY: initialPhysics.path.map(p => p.y),
+      targetPosition: initialPhysics.targetColumn,
+      data: null // Será preenchido quando a API responder
+    };
+
+    // Adiciona a bola ao ecrã instantaneamente
+    setBalls(prev => [...prev, newBall]);
+
+    // 2. CHAMADA DA API EM SEGUNDO PLANO (Paralela à animação)
     try {
       const { data } = await api.post('/games/plinko', { betPoints: bet, rows });
       
-      // Constrói a rota física em tempo real antes de renderizar a bola
-      const keyframes = generatePhysicsPath(data.position, rows);
-      
-      const newBall = {
-        id: ballId,
-        keyframesX: keyframes.map(p => p.x),
-        keyframesY: keyframes.map(p => p.y),
-        targetPosition: data.position,
-        data: data
-      };
+      // Recalcula a rota real baseada na resposta real da API
+      const realPhysics = generatePhysicsPath(rows, data.position);
 
-      setBalls(prev => [...prev, newBall]);
+      // Atualiza a bola em pleno voo com o seu destino e dados reais
+      setBalls(prev => prev.map(b => {
+        if (b.id === ballId) {
+          return {
+            ...b,
+            keyframesX: realPhysics.path.map(p => p.x),
+            keyframesY: realPhysics.path.map(p => p.y),
+            targetPosition: data.position,
+            data: data
+          };
+        }
+        return b;
+      }));
 
     } catch (err) {
+      // Se a API falhar, removemos a bola imediatamente para evitar bugs visuais
+      setBalls(prev => prev.filter(b => b.id !== ballId));
       toast.error(err.response?.data?.error || err.message);
     }
   };
 
   const handleBallComplete = (ball) => {
+    // Se por algum motivo a API demorou mais que a queda (raro), ignora ou finge um resultado nulo
+    if (!ball.data) {
+      setBalls(prev => prev.filter(b => b.id !== ball.id));
+      return;
+    }
+
     setLastResult(ball.data);
     setActiveBucket(ball.targetPosition);
     refresh();
@@ -1313,7 +1333,6 @@ export function PlinkoGame() {
       toast.error('Sem multiplicador desta vez');
     }
 
-    // Remove a bola do estado após o impacto e desliga o brilho do bucket após 200ms
     setTimeout(() => setActiveBucket(null), 200);
     setBalls(prev => prev.filter(b => b.id !== ball.id));
   };
@@ -1323,26 +1342,23 @@ export function PlinkoGame() {
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <Card>
-        <h3 className="font-bold mb-2 text-center text-lg tracking-wide text-white">🪂 Plinko Premium</h3>
+        <h3 className="font-bold mb-2 text-center text-lg tracking-wide text-white">🪂 Plinko Ultra-Fast</h3>
 
-        {/* Tabuleiro Dinâmico */}
+        {/* Tabuleiro */}
         <div className="relative bg-[#0f141c] border border-slate-800 rounded-xl p-4 mb-4 overflow-hidden shadow-inner flex flex-col justify-between" style={{ height: '420px' }}>
           
-          {/* Matriz Real de Pinos Dinâmicos baseada no número de linhas selecionado */}
+          {/* Pinos */}
           <div className="flex flex-col justify-between h-[82%] mt-4 select-none">
             {Array.from({ length: rows }, (_, r) => (
               <div key={r} className="flex justify-center items-center" style={{ gap: `${26 - rows * 0.8}px` }}>
                 {Array.from({ length: r + 3 }, (_, c) => (
-                  <div 
-                    key={c} 
-                    className="w-2 h-2 rounded-full bg-slate-400 shadow-[0_0_4px_rgba(255,255,255,0.6)] border border-slate-600 transition-all duration-300" 
-                  />
+                  <div key={c} className="w-2 h-2 rounded-full bg-slate-400 shadow-[0_0_4px_rgba(255,255,255,0.6)] border border-slate-600" />
                 ))}
               </div>
             ))}
           </div>
 
-          {/* Renderização em Tempo Real de Múltiplas Bolas */}
+          {/* Bolas Multi-clique */}
           {balls.map((ball) => (
             <motion.div
               key={ball.id}
@@ -1353,14 +1369,14 @@ export function PlinkoGame() {
                 top: ball.keyframesY,
               }}
               transition={{
-                duration: rows * 0.11, // Velocidade fluida proporcional à altura do tabuleiro
+                duration: rows * 0.10, // Ligeiramente mais rápido para aumentar a adrenalina
                 ease: 'linear',
               }}
               onAnimationComplete={() => handleBallComplete(ball)}
             />
           ))}
 
-          {/* Contentores de Multiplicadores na Base */}
+          {/* Multiplicadores */}
           <div className="flex gap-[3px] w-full mt-auto z-10 px-1">
             {mults.map((m, i) => {
               const isActive = activeBucket === i;
@@ -1384,7 +1400,7 @@ export function PlinkoGame() {
           </div>
         </div>
 
-        {/* Badge do Último Resultado */}
+        {/* Último Resultado */}
         {lastResult && (
           <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="mb-4 text-center">
             <Badge color={lastResult.winPoints > 0 ? 'green' : 'red'}>
@@ -1393,12 +1409,12 @@ export function PlinkoGame() {
           </motion.div>
         )}
 
-        {/* Seleção de Linhas (Dinâmica) */}
+        {/* Seleção de Linhas */}
         <div className="flex gap-2 mb-4 bg-[#1a222f] p-1.5 rounded-xl border border-slate-800">
           {[8, 12, 16].map(r => (
             <button 
               key={r} 
-              disabled={balls.length > 0} // Impede mudar de linhas se houver bolas em queda para não quebrar a física
+              disabled={balls.length > 0} 
               onClick={() => setRows(r)}
               className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all
                 ${rows === r 
@@ -1410,7 +1426,7 @@ export function PlinkoGame() {
           ))}
         </div>
 
-        {/* Inputs de Valores de Aposta */}
+        {/* Inputs de Aposta */}
         <div className="flex gap-3 mb-4">
           <input 
             type="number" 
@@ -1430,7 +1446,7 @@ export function PlinkoGame() {
           ))}
         </div>
 
-        {/* Botão de Disparo */}
+        {/* Botão Principal */}
         <Button onClick={dropBall} className="w-full py-3.5 text-sm font-bold uppercase tracking-wider">
           🟢 Soltar Bola — {formatPoints(bet)}
         </Button>
