@@ -1722,52 +1722,69 @@ export function VideoPokerGame() {
 
 // ── SLOTS ──────────────────────────────────────────────────────────────────────
 const SYMBOL_COLORS = {
-  cherry:'#ef4444', lemon:'#eab308', orange:'#f97316', grape:'#8b5cf6',
-  melon:'#10b981', bell:'#f59e0b', star:'#3b82f6', diamond:'#06b6d4', seven:'#dc2626',
+  cherry: '#ef4444', lemon: '#eab308', orange: '#f97316', grape: '#8b5cf6',
+  melon: '#10b981', bell: '#f59e0b', star: '#3b82f6', diamond: '#06b6d4', seven: '#dc2626',
 };
 
 export function SlotsGame() {
   const { refresh } = useGame();
   const [bet, setBet] = useState(50);
   const [spinning, setSpinning] = useState(false);
-  const [displayReels, setDisplayReels] = useState([null, null, null]);
+  const [displayReels, setDisplayReels] = useState([{ emoji: '❓' }, { emoji: '❓' }, { emoji: '❓' }]);
   const [result, setResult] = useState(null);
   const [animatingReels, setAnimatingReels] = useState([false, false, false]);
 
-  const SYMBOLS = ['🍒','🍋','🍊','🍇','🍈','🔔','⭐','💎','7️⃣'];
+  const SYMBOLS = ['🍒', '🍋', '🍊', '🍇', '🔔', '⭐', '💎', '7️⃣'];
 
   const spin = async () => {
     setSpinning(true);
     setResult(null);
-    // Anima os reels com símbolos aleatórios antes do resultado real
     setAnimatingReels([true, true, true]);
+
+    // Loop rápido de símbolos aleatórios para simular a rotação
     const interval = setInterval(() => {
       setDisplayReels([
         { emoji: SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)] },
         { emoji: SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)] },
         { emoji: SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)] },
       ]);
-    }, 80);
+    }, 60);
 
     try {
       const { data } = await api.post('/games/slots', { betPoints: bet });
-      // Para os reels um por um com delay
+
+      // Sequência de travagem realista (Rolo 1 -> Rolo 2 -> Rolo 3)
       setTimeout(() => {
         clearInterval(interval);
+        
+        // Para Rolo 1
         setAnimatingReels([false, true, true]);
-        setDisplayReels([data.reels[0], data.reels[1], data.reels[2]]);
+        setDisplayReels(prev => [data.reels[0], prev[1], prev[2]]);
+
         setTimeout(() => {
+          // Para Rolo 2
           setAnimatingReels([false, false, true]);
+          setDisplayReels(prev => [data.reels[0], data.reels[1], prev[2]]);
+
           setTimeout(() => {
+            // Para Rolo 3
             setAnimatingReels([false, false, false]);
+            setDisplayReels([data.reels[0], data.reels[1], data.reels[2]]);
+            
+            // Define o resultado final e dispara os efeitos visuais
             setResult(data);
             refresh();
-            if (data.winPoints > 0) toast.success(`🎰 ${data.multiplier}x! +${formatPoints(data.winPoints)}`);
-            else toast.error('Tenta de novo!');
+            
+            if (data.winPoints > 0) {
+              toast.success(`🎰 ${data.multiplier}x! +${formatPoints(data.winPoints)}`);
+            } else {
+              toast.error('Tenta de novo!');
+            }
             setSpinning(false);
-          }, 400);
-        }, 400);
-      }, 1200);
+          }, 450);
+        }, 450);
+      }, 1000);
+
     } catch (err) {
       clearInterval(interval);
       setSpinning(false);
@@ -1778,80 +1795,176 @@ export function SlotsGame() {
 
   return (
     <div className="max-w-md mx-auto space-y-4">
-      <Card className="text-center" style={{ background: 'radial-gradient(circle at 50% 0%, #1a0f20, #0f0a14)' }}>
-        <h3 className="font-bold mb-4 text-orange text-lg">🎰 Slots</h3>
+      <Card className="bg-[#0f141c] border border-slate-800 text-white overflow-hidden p-5">
+        
+        {/* Cabeçalho Neon */}
+        <div className="flex justify-between items-center mb-5">
+          <div className="flex items-center gap-2">
+            <Coins className="text-orange animate-pulse" size={18} />
+            <h3 className="font-black text-white text-lg tracking-wider uppercase">Slots Pro</h3>
+          </div>
+          {result?.winPoints > 0 && !spinning && (
+            <motion.div 
+              initial={{ scale: 0.8, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }}
+              className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-md font-bold flex items-center gap-1"
+            >
+              <Trophy size={12} /> Big Win!
+            </motion.div>
+          )}
+        </div>
 
-        {/* Máquina */}
-        <div className="bg-bg4 border-2 border-border2 rounded-card2 p-4 mb-4 mx-auto max-w-xs"
-          style={{ boxShadow: 'inset 0 4px 20px rgba(0,0,0,.4)' }}>
-          <div className="flex gap-3 justify-center items-center">
+        {/* Chassis da Máquina de Slots */}
+        <div 
+          className={`bg-[#0a0d14] border-2 rounded-2xl p-5 mb-5 relative transition-all duration-300 ${
+            spinning 
+              ? 'border-amber-500/40 shadow-[0_0_25px_rgba(245,158,11,0.15)]' 
+              : result?.winPoints > 0 
+                ? 'border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.25)] animate-bounce' 
+                : 'border-slate-800 shadow-inner'
+          }`}
+        >
+          {/* Luzes Laterais Decorativas de Casino */}
+          <div className="absolute inset-y-4 left-2 w-1 flex flex-col justify-between opacity-40">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className={`w-1 h-1 rounded-full ${spinning ? 'bg-amber-400 animate-ping' : 'bg-slate-600'}`} />
+            ))}
+          </div>
+          <div className="absolute inset-y-4 right-2 w-1 flex flex-col justify-between opacity-40">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className={`w-1 h-1 rounded-full ${spinning ? 'bg-amber-400 animate-ping' : 'bg-slate-600'}`} />
+            ))}
+          </div>
+
+          {/* Compartimento dos Rolos (Reels Container) */}
+          <div className="flex gap-3.5 justify-center items-center px-2">
             {displayReels.map((reel, i) => {
               const isAnim = animatingReels[i];
-              const hasReel = reel && reel.emoji;
               return (
-                <div key={i} className="w-20 h-20 bg-bg3 border-2 border-border rounded-xl flex items-center justify-center"
-                  style={{ boxShadow: 'inset 0 2px 8px rgba(0,0,0,.5)' }}>
-                  <motion.span className="text-4xl select-none"
-                    animate={isAnim ? { y: [-8, 8], opacity: [0.6, 1] } : {}}
-                    transition={isAnim ? { duration: 0.12, repeat: Infinity, repeatType: 'reverse' } : {}}>
-                    {hasReel ? reel.emoji : '❓'}
-                  </motion.span>
+                <div 
+                  key={i} 
+                  className="w-24 h-24 bg-[#141a26] border border-slate-800 rounded-xl flex items-center justify-center overflow-hidden relative"
+                  style={{ boxShadow: 'inset 0 4px 12px rgba(0,0,0,0.6)' }}
+                >
+                  {/* Linha guia de mira de fundo */}
+                  <div className="absolute inset-x-0 h-px bg-slate-800/50 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  
+                  <AnimatePresence mode="wait">
+                    <motion.span 
+                      key={reel?.emoji + i + isAnim}
+                      className="text-5xl select-none block filter drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
+                      initial={isAnim ? {} : { scale: 0.4, y: -20, opacity: 0 }}
+                      animate={isAnim ? {
+                        y: [-12, 12],
+                        filter: 'blur(3px)', // Motion Blur perfeito em CSS
+                        scale: 0.95
+                      } : { 
+                        scale: [1.2, 1], // Pequeno bounce elástico ao parar
+                        y: 0, 
+                        opacity: 1,
+                        filter: 'blur(0px)'
+                      }}
+                      transition={isAnim ? { 
+                        duration: 0.05, 
+                        repeat: Infinity, 
+                        repeatType: 'reverse',
+                        ease: 'linear'
+                      } : {
+                        type: 'spring',
+                        stiffness: 400,
+                        damping: 14
+                      }}
+                    >
+                      {reel?.emoji || '❓'}
+                    </motion.span>
+                  </AnimatePresence>
                 </div>
               );
             })}
           </div>
-          {/* Linha da vitória */}
-          <div className="mt-2 flex items-center gap-1 justify-center">
-            <div className="flex-1 h-px bg-orange/40" />
-            <span className="text-orange text-[10px] font-bold">LINHA</span>
-            <div className="flex-1 h-px bg-orange/40" />
+
+          {/* Linha Guia Central Transparente */}
+          <div className="mt-4 flex items-center gap-2 justify-center opacity-70">
+            <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent to-orange/40" />
+            <span className="text-orange text-[9px] font-black tracking-widest uppercase">Payline</span>
+            <div className="flex-1 h-[1px] bg-gradient-to-l from-transparent to-orange/40" />
           </div>
         </div>
 
-        {result && !spinning && (
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="mb-4">
-            <Badge color={result.winPoints > 0 ? 'green' : 'red'} className="text-sm">
-              {result.winPoints > 0 ? `🎉 ${result.multiplier}x → +${formatPoints(result.winPoints)}!` : '😔 Sem ganho — tenta de novo!'}
-            </Badge>
-          </motion.div>
-        )}
+        {/* Banner de Estado ou Feedback de Ganhos */}
+        <div className="h-10 flex items-center justify-center mb-4">
+          {result && !spinning ? (
+            <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}>
+              <Badge color={result.winPoints > 0 ? 'green' : 'red'} className="text-xs py-1.5 px-4 font-black rounded-lg tracking-wide shadow-md">
+                {result.winPoints > 0 
+                  ? `🎉 GANHASTE ${result.multiplier}x → +${formatPoints(result.winPoints)}!` 
+                  : '😔 Sem sorte — Tenta outra vez!'}
+              </Badge>
+            </motion.div>
+          ) : (
+            spinning && (
+              <span className="text-xs text-slate-500 font-medium tracking-wide animate-pulse flex items-center gap-1.5">
+                <Zap size={12} className="text-amber-500 animate-bounce" /> Cruzando linhas de pagamento...
+              </span>
+            )
+          )}
+        </div>
 
-        {/* Tabela de símbolos */}
-        <div className="grid grid-cols-3 gap-1.5 mb-4 text-left">
+        {/* Tabela de Símbolos / Multiplicadores Estilizada */}
+        <div className="grid grid-cols-4 gap-1.5 mb-5 text-center">
           {[
-            { s:'🍒', n:'Cherry',  m:'2x', id:'cherry' },
-            { s:'🍋', n:'Lemon',   m:'3x', id:'lemon'  },
-            { s:'🍊', n:'Orange',  m:'5x', id:'orange' },
-            { s:'🍇', n:'Grape',   m:'8x', id:'grape'  },
-            { s:'🔔', n:'Bell',    m:'20x',id:'bell'   },
-            { s:'⭐', n:'Star',    m:'40x',id:'star'   },
-            { s:'💎', n:'Diamond', m:'100x',id:'diamond'},
-            { s:'7️⃣', n:'Lucky 7', m:'250x',id:'seven' },
+            { s: '🍒', n: 'Cherry', m: '2x', id: 'cherry' },
+            { s: '🍋', n: 'Lemon', m: '3x', id: 'lemon' },
+            { s: '🍊', n: 'Orange', m: '5x', id: 'orange' },
+            { s: '🍇', n: 'Grape', m: '8x', id: 'grape' },
+            { s: '🔔', n: 'Bell', m: '20x', id: 'bell' },
+            { s: '⭐', n: 'Star', m: '40x', id: 'star' },
+            { s: '💎', n: 'Diamond', m: '100x', id: 'diamond' },
+            { s: '7️⃣', n: 'Lucky 7', m: '250x', id: 'seven' },
           ].map(sym => (
-            <div key={sym.id} className="flex items-center gap-1.5 bg-bg4 rounded-lg px-2 py-1">
-              <span className="text-lg">{sym.s}</span>
-              <div>
-                <div className="text-[10px] text-text3">{sym.n}</div>
-                <div className="text-[11px] font-bold" style={{ color: SYMBOL_COLORS[sym.id] }}>{sym.m}</div>
-              </div>
+            <div 
+              key={sym.id} 
+              className="bg-[#141a26] border border-slate-900 rounded-xl p-1.5 flex flex-col items-center justify-center transition-colors hover:border-slate-800"
+            >
+              <span className="text-xl mb-0.5 filter drop-shadow-[0_1px_3px_rgba(0,0,0,0.3)] select-none">{sym.s}</span>
+              <span className="text-[10px] font-black tracking-tight" style={{ color: SYMBOL_COLORS[sym.id] }}>
+                {sym.m}
+              </span>
             </div>
           ))}
         </div>
 
-        <div className="flex gap-2 mb-3 justify-center">
-          <input type="number" min="1" value={bet} disabled={spinning}
+        {/* Painel de Controlo Inferior */}
+        <div className="flex gap-2 mb-4 bg-[#0a0d14] p-1.5 rounded-xl border border-slate-900 items-center">
+          <input 
+            type="number" 
+            min="1" 
+            value={bet} 
+            disabled={spinning}
             onChange={e => setBet(Math.max(1, +e.target.value))}
-            className="w-28 bg-bg3 border border-border2 text-white rounded-[10px] px-3 py-2 text-sm text-center focus:outline-none focus:border-orange" />
-          {[10, 50, 100].map(v => (
-            <button key={v} disabled={spinning} onClick={() => setBet(v)}
-              className="px-2.5 py-2 rounded-lg bg-bg4 border border-border text-xs font-semibold hover:border-orange transition-colors disabled:opacity-40">
-              {v}
-            </button>
-          ))}
+            className="w-24 bg-[#141a26] border border-slate-800 text-white rounded-lg py-2 text-sm text-center font-bold focus:outline-none focus:border-slate-600 disabled:opacity-50" 
+          />
+          <div className="flex gap-1 flex-1">
+            {[10, 50, 100].map(v => (
+              <button 
+                key={v} 
+                disabled={spinning} 
+                onClick={() => setBet(v)}
+                className="flex-1 py-2 rounded-lg bg-[#141a26] border border-slate-800 text-xs font-bold hover:border-slate-600 text-slate-300 transition-colors disabled:opacity-30"
+              >
+                {v}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <Button onClick={spin} loading={spinning} className="w-full py-3">
-          🎰 {spinning ? 'A girar...' : `Apostar — ${formatPoints(bet)}`}
+        {/* Botão de Ação */}
+        <Button 
+          onClick={spin} 
+          loading={spinning} 
+          className="w-full py-4 text-sm font-black uppercase tracking-widest shadow-lg active:scale-[0.99] transition-transform"
+        >
+          🎰 {spinning ? 'A Rodar...' : `Girar Rolos — ${formatPoints(bet)}`}
         </Button>
       </Card>
     </div>
