@@ -644,10 +644,20 @@ export function RouletteGame() {
 
       const idx = WHEEL_ORDER.indexOf(data.winningNumber);
       const segAngle = 360 / 37;
-      const targetWheel = 360 * 5 + (idx * segAngle);
-      const targetBall = -(360 * 7) - (idx * segAngle);
-      setRotation(r => r + targetWheel);
-      setBallAngle(b => b + targetBall);
+      // Para a roda parar com o número vencedor debaixo do marcador (12h),
+      // precisamos que a rotação final seja: 360*N - (idx * segAngle + segAngle/2)
+      // Como usamos acumulação, calculamos quantas voltas completas já demos
+      // e construímos o próximo target absoluto a partir daí.
+      setRotation(prev => {
+        const fullRotations = Math.ceil(prev / 360) * 360 + 360 * 5;
+        return fullRotations - (idx * segAngle + segAngle / 2);
+      });
+      // A bola gira em sentido contrário para dar o efeito visual,
+      // mas para no ângulo oposto correto (posição fixa relativa à roda).
+      setBallAngle(prev => {
+        const fullRotations = Math.ceil(Math.abs(prev) / 360) * 360 + 360 * 7;
+        return -(fullRotations - (idx * segAngle + segAngle / 2));
+      });
 
       setTimeout(() => {
         setSpinning(false);
