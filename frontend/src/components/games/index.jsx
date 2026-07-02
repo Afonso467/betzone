@@ -7,7 +7,6 @@ import { Button, Card, Input, Select, Badge, Spinner } from '../ui';
 import { formatPoints, RARITY_COLORS, RARITY_BG } from '../../utils/constants';
 import { Plane, Rocket, DollarSign } from 'lucide-react'; // Ícones modernos
 import { Shield, Percentage, Zap, ArrowDown, ArrowUp } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
 
 // ── MINES ────────────────────────────────────────────────────────────────────
 export function MinesGame() {
