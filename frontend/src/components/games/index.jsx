@@ -5,7 +5,7 @@ import api from '../../utils/api';
 import { useGame } from '../../context/AuthContext';
 import { Button, Card, Input, Select, Badge, Spinner } from '../ui';
 import { formatPoints, RARITY_COLORS, RARITY_BG } from '../../utils/constants';
-import { Plane, Rocket, DollarSign, Shield, Zap, ArrowDown, ArrowUp } from 'lucide-react';
+import { Plane, Rocket, DollarSign, Shield, Zap, ArrowDown, ArrowUp, Coins, Trophy } from 'lucide-react';
 
 // ── MINES ────────────────────────────────────────────────────────────────────
 export function MinesGame() {
@@ -264,22 +264,113 @@ export function CoinflipGame() {
 }
 
 // ── CRASH ─────────────────────────────────────────────────────────────────────
-
-
-// Supondo que estes sejam os teus componentes customizados importados
-// import { Card, Badge, Input, Button, toast, api, useGame, formatPoints } from './teus-componentes';
-
 export function CrashGame() {
   const { refresh } = useGame();
-  const [bet, setBet] = useState(50);
+  const [bet, setBet]       = useState(50);
   const [multiplier, setMultiplier] = useState(1.00);
   const [crashPoint, setCrashPoint] = useState(null);
-  const [running, setRunning] = useState(false);
-  const [crashed, setCrashed] = useState(false);
+  const [running, setRunning]   = useState(false);
+  const [crashed, setCrashed]   = useState(false);
   const [cashedOut, setCashedOut] = useState(false);
-  const [betIn, setBetIn] = useState(false);
-  const [history, setHistory] = useState([1.23, 3.45, 1.01, 8.92, 2.11]);
+  const [betIn, setBetIn]       = useState(false);
+  const [history, setHistory]   = useState([1.23, 3.45, 1.01, 8.92, 2.11, 1.54, 26.06, 3.77]);
   const intervalRef = useRef(null);
+  const canvasRef   = useRef(null);
+  const frameRef    = useRef(null);
+  const progressRef = useRef(0); // 0→1 de quanto a curva já cresceu
+
+  // Desenha a curva + avião no canvas
+  const draw = (progress, didCrash, didCashout) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    // Fundo gradiente
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#0a0615');
+    bg.addColorStop(1, '#120a1e');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Estrelas
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    for (let i = 0; i < 60; i++) {
+      const sx = ((i * 137 + 11) % W);
+      const sy = ((i * 97 + 31) % H);
+      ctx.fillRect(sx, sy, i % 3 === 0 ? 1.5 : 0.8, i % 3 === 0 ? 1.5 : 0.8);
+    }
+
+    // Curva de Bézier da trajetória
+    const p = Math.min(progress, 1);
+    const startX = 60, startY = H - 40;
+    const endX = startX + (W - 80) * p;
+    const endY = startY - (H - 80) * Math.pow(p, 0.7); // curva exponencial
+
+    const cpX = startX + (endX - startX) * 0.3;
+    const cpY = startY;
+
+    // Brilho sob a curva
+    const grad = ctx.createLinearGradient(startX, startY, endX, endY);
+    grad.addColorStop(0, 'rgba(245,158,11,0)');
+    grad.addColorStop(1, didCrash ? 'rgba(239,68,68,0.25)' : didCashout ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.2)');
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.quadraticCurveTo(cpX, cpY, endX, endY);
+    ctx.lineTo(endX, startY);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Linha da curva
+    const lineColor = didCrash ? '#ef4444' : didCashout ? '#10b981' : '#f59e0b';
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.quadraticCurveTo(cpX, cpY, endX, endY);
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 3;
+    ctx.shadowColor = lineColor;
+    ctx.shadowBlur = 12;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Avião/foguete na ponta da curva
+    if (!didCrash) {
+      const angle = Math.atan2(startY - endY, endX - startX);
+      ctx.save();
+      ctx.translate(endX, endY);
+      ctx.rotate(-angle);
+      ctx.font = '28px serif';
+      ctx.fillText('✈️', -14, 10);
+      // Rastro
+      ctx.restore();
+      // Rastro de fogo
+      for (let t = 0; t < 6; t++) {
+        const tp = Math.max(0, p - t * 0.015);
+        const tx2 = startX + (W - 80) * tp;
+        const ty2 = startY - (H - 80) * Math.pow(tp, 0.7);
+        const alpha = (6 - t) / 10;
+        ctx.beginPath();
+        ctx.arc(tx2 - 6, ty2, 3 - t * 0.3, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(245,158,11,${alpha})`;
+        ctx.fill();
+      }
+    } else {
+      // Explosão
+      ctx.font = '32px serif';
+      ctx.fillText('💥', endX - 16, endY + 10);
+    }
+
+    // Eixo Y (linha de base)
+    ctx.beginPath();
+    ctx.moveTo(startX, 20);
+    ctx.lineTo(startX, startY);
+    ctx.lineTo(W - 20, startY);
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  };
 
   const startRound = async () => {
     try {
@@ -290,181 +381,127 @@ export function CrashGame() {
       setCashedOut(false);
       setMultiplier(1.00);
       setRunning(true);
-      
+      progressRef.current = 0;
       let current = 1.00;
-      intervalRef.current = setInterval(() => {
+
+      const animate = () => {
         current = parseFloat((current * 1.015).toFixed(2));
         setMultiplier(current);
-        
+        // Progresso: satura em 0.95 para o avião nunca sair do ecrã
+        progressRef.current = Math.min(0.95, 1 - 1 / Math.pow(current, 0.4));
+        draw(progressRef.current, false, false);
+
         if (current >= data.crashPoint) {
-          clearInterval(intervalRef.current);
+          draw(progressRef.current, true, false);
           setCrashed(true);
           setRunning(false);
           setBetIn(false);
-          setHistory(h => [parseFloat(current.toFixed(2)), ...h.slice(0, 7)]);
+          setHistory(h => [parseFloat(current.toFixed(2)), ...h.slice(0, 9)]);
           toast.error(`💥 Crash em ${current.toFixed(2)}x!`);
           refresh();
+          return; // para o loop
         }
-      }, 100);
-    } catch (err) { 
-      toast.error(err.response?.data?.error || err.message); 
+        intervalRef.current = setTimeout(animate, 100);
+      };
+      intervalRef.current = setTimeout(animate, 100);
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message);
     }
   };
 
   const cashout = async () => {
     if (!running || !betIn) return;
-    clearInterval(intervalRef.current);
+    clearTimeout(intervalRef.current);
     try {
       const { data } = await api.post('/games/crash/cashout', { betPoints: bet, multiplier, crashPoint });
       setCashedOut(true);
       setBetIn(false);
       setRunning(false);
+      draw(progressRef.current, false, true);
       toast.success(`💰 Cashout ${multiplier.toFixed(2)}x! +${formatPoints(data.winPoints)}`);
       refresh();
-    } catch (err) { 
-      toast.error(err.response?.data?.error || err.message); 
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message);
     }
   };
 
-  useEffect(() => () => clearInterval(intervalRef.current), []);
+  useEffect(() => {
+    draw(0, false, false);
+    return () => { clearTimeout(intervalRef.current); };
+  }, []);
 
-  const multColor = crashed 
-    ? 'var(--red)' 
-    : cashedOut 
-    ? 'var(--green)' 
-    : multiplier < 2 
-    ? 'var(--green)' 
-    : multiplier < 5 
-    ? 'var(--orange)' 
-    : 'var(--red)';
-
-  // --- CÁLCULO DA POSIÇÃO DO AVIÃO ---
-  // Limita os valores entre 0% e 80% para o avião não fugir da caixa visual antes do crash
-  const progressX = Math.min((multiplier - 1) * 15, 80); 
-  const progressY = Math.min((multiplier - 1) * 12, 70);
+  const multColor = crashed ? '#ef4444' : cashedOut ? '#10b981' : multiplier < 2 ? '#10b981' : multiplier < 5 ? '#f59e0b' : '#ef4444';
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <Card>
-        {/* Histórico */}
-        <div className="flex gap-2 mb-4 flex-wrap">
-          {history.map((h, i) => (
-            <Badge key={i} color={h < 2 ? 'red' : h < 5 ? 'orange' : 'green'}>
-              {h.toFixed(2)}x
-            </Badge>
-          ))}
-        </div>
+    <div className="max-w-3xl mx-auto">
+      {/* Histórico de crashes */}
+      <div className="flex gap-1.5 flex-wrap mb-3">
+        {history.map((h, i) => (
+          <span key={i}
+            className="px-2.5 py-1 rounded-full text-xs font-bold"
+            style={{
+              background: h < 2 ? 'rgba(239,68,68,0.15)' : h < 5 ? 'rgba(245,158,11,0.15)' : 'rgba(16,185,129,0.15)',
+              color: h < 2 ? '#ef4444' : h < 5 ? '#f59e0b' : '#10b981',
+              border: `1px solid ${h < 2 ? 'rgba(239,68,68,0.3)' : h < 5 ? 'rgba(245,158,11,0.3)' : 'rgba(16,185,129,0.3)'}`,
+            }}>
+            {h.toFixed(2)}x
+          </span>
+        ))}
+      </div>
 
-        {/* Ecrã de Voo Animado (Aviator Style) */}
-        <div className="h-56 bg-bg4 rounded-xl flex items-center justify-center relative overflow-hidden mb-4 border border-border bg-gradient-to-b from-slate-900 via-slate-950 to-black">
-          
-          {/* Linhas de Grelha de Gráfico ao fundo para dar sensação de movimento */}
-          <div className="absolute inset-0 opacity-10 pointer-events-none bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:24px_24px]" />
+      {/* Canvas principal */}
+      <div className="relative rounded-card2 overflow-hidden mb-3 border border-border">
+        <canvas ref={canvasRef} width={700} height={340} className="w-full" style={{ display: 'block' }} />
 
-          {/* Status Indicators */}
-          <AnimatePresence>
-            {crashed && (
-              <motion.span 
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="absolute top-3 right-3 bg-red/20 text-red px-2 py-0.5 rounded text-xs font-bold border border-red/30 z-10"
-              >
-                💥 CRASHED
-              </motion.span>
-            )}
-            {cashedOut && (
-              <motion.span 
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="absolute top-3 right-3 bg-green/20 text-success px-2 py-0.5 rounded text-xs font-bold border border-green/30 z-10"
-              >
-                ✅ CASHOUT
-              </motion.span>
-            )}
-          </AnimatePresence>
-
-          {/* Multiplicador Central */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+        {/* Multiplicador sobreposto */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="text-center">
             <motion.div
-              key={Math.floor(multiplier * 10)}
-              className="text-6xl font-black tracking-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
-              style={{ color: multColor }}
-              animate={running && !crashed ? { scale: [1, 1.04, 1] } : {}}
+              className="text-7xl font-black tabular-nums drop-shadow-lg"
+              style={{ color: multColor, textShadow: `0 0 30px ${multColor}66` }}
+              animate={running ? { scale: [1, 1.03, 1] } : {}}
               transition={{ repeat: Infinity, duration: 0.4 }}
             >
               {multiplier.toFixed(2)}x
             </motion.div>
+            {crashed && (
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className="text-red font-bold text-lg mt-1">💥 CRASHED</motion.div>
+            )}
+            {cashedOut && (
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className="font-bold text-lg mt-1" style={{ color: '#10b981' }}>✅ CASHOUT!</motion.div>
+            )}
           </div>
-
-          {/* O Avião e o Rasto de Fumo */}
-          {running && !crashed && (
-            <motion.div 
-              className="absolute left-6 bottom-6 w-full h-full pointer-events-none"
-              style={{ x: `${progressX}%`, y: `-${progressY}%` }}
-              transition={{ type: 'tween', ease: 'linear' }}
-            >
-              {/* Linha de rasto curva do avião */}
-              <svg className="absolute overflow-visible w-full h-full left-0 top-0 pointer-events-none">
-                <motion.path
-                  d={`M 0 160 Q ${progressX / 2} ${160 - progressY / 2}, ${progressX} ${160 - progressY}`}
-                  fill="none"
-                  stroke="rgba(239, 68, 68, 0.4)"
-                  strokeWidth="3"
-                  strokeDasharray="4 4"
-                />
-              </svg>
-
-              {/* O Avião propriamente dito */}
-              <motion.div 
-                className="absolute text-red-500 bottom-0 left-0"
-                animate={{ y: [0, -4, 0] }}
-                transition={{ repeat: Infinity, duration: 1, ease: "easeInOut" }}
-                style={{ transform: 'rotate(-15deg)' }}
-              >
-                <Plane size={36} className="fill-current text-red shadow-lg transform -rotate-45" />
-                
-                {/* Propulsor / Foguete visual traseiro */}
-                <span className="absolute -left-2 top-3 w-2 h-2 rounded-full bg-orange animate-ping opacity-75" />
-              </motion.div>
-            </motion.div>
-          )}
-
-          {/* Estado de Espera (Antes do Jogo Começar) */}
-          {!running && !crashed && !cashedOut && (
-            <div className="absolute bottom-6 left-6 text-slate-500 flex items-center gap-2 text-sm font-medium">
-              <Plane size={18} className="animate-pulse" />
-              Avião pronto na pista...
-            </div>
-          )}
         </div>
+      </div>
 
-        {/* Inputs e Controlos de Aposta */}
-        <Input 
-          label="💎 Aposta (pts)" 
-          type="number" 
-          min="1" 
-          step="1" 
-          value={bet}
-          onChange={e => setBet(+e.target.value)} 
-          disabled={running} 
-        />
-
-        <div className="flex gap-3 mt-4">
-          <Button 
-            onClick={startRound} 
-            disabled={running} 
-            className="flex-1 py-3 flex items-center justify-center gap-2"
-          >
-            <Rocket size={18} /> Iniciar
+      {/* Controlos */}
+      <Card>
+        <div className="flex gap-3 items-end">
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-text2 mb-1.5">💎 Aposta (pts)</label>
+            <div className="flex gap-2">
+              <input type="number" min="1" step="1" value={bet} disabled={running}
+                onChange={e => setBet(Math.max(1, +e.target.value))}
+                className="flex-1 bg-bg3 border border-border2 text-white rounded-[10px] px-3 py-2.5 text-sm focus:outline-none focus:border-orange" />
+              {[10, 50, 100, 500].map(v => (
+                <button key={v} disabled={running} onClick={() => setBet(v)}
+                  className="px-2.5 py-2 rounded-lg bg-bg4 border border-border text-xs font-semibold hover:border-orange transition-colors disabled:opacity-40">
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-3 mt-3">
+          <Button onClick={startRound} disabled={running} className="flex-1 py-3">
+            ✈️ Iniciar Voo
           </Button>
-          
-          <Button 
-            onClick={cashout} 
-            disabled={!running || cashedOut}
-            className="flex-1 py-3 flex items-center justify-center gap-2 transition-all font-bold" 
-            style={{ background: 'var(--green)', color: '#fff' }}
-          >
-            <DollarSign size={18} /> Cashout — {formatPoints(bet * multiplier)}
+          <Button onClick={cashout} disabled={!running || cashedOut || !betIn}
+            className="flex-1 py-3"
+            style={{ background: running && betIn ? '#10b981' : undefined, color: running && betIn ? '#fff' : undefined }}>
+            💰 Cashout — {formatPoints(Math.round(bet * multiplier))}
           </Button>
         </div>
       </Card>
