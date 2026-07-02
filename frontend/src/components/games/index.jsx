@@ -1198,7 +1198,7 @@ export function DiceGame() {
           </div>
           <div className="bg-[#161d2a] border border-slate-800 p-2.5 rounded-xl text-center">
             <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1 mb-0.5">
-              <Percentage size={12} /> Chance
+              <Percent size={12} /> Chance
             </span>
             <span className="text-sm font-black text-orange-400 text-orange">{chance}%</span>
           </div>
