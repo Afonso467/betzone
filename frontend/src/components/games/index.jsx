@@ -5,6 +5,9 @@ import api from '../../utils/api';
 import { useGame } from '../../context/AuthContext';
 import { Button, Card, Input, Select, Badge, Spinner } from '../ui';
 import { formatPoints, RARITY_COLORS, RARITY_BG } from '../../utils/constants';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plane, Rocket, DollarSign } from 'lucide-react'; // Ícones modernos
 
 // ── MINES ────────────────────────────────────────────────────────────────────
 export function MinesGame() {
@@ -198,16 +201,21 @@ export function CoinflipGame() {
 }
 
 // ── CRASH ─────────────────────────────────────────────────────────────────────
+
+
+// Supondo que estes sejam os teus componentes customizados importados
+// import { Card, Badge, Input, Button, toast, api, useGame, formatPoints } from './teus-componentes';
+
 export function CrashGame() {
   const { refresh } = useGame();
-  const [bet, setBet]   = useState(50);
+  const [bet, setBet] = useState(50);
   const [multiplier, setMultiplier] = useState(1.00);
   const [crashPoint, setCrashPoint] = useState(null);
-  const [running, setRunning]   = useState(false);
-  const [crashed, setCrashed]   = useState(false);
+  const [running, setRunning] = useState(false);
+  const [crashed, setCrashed] = useState(false);
   const [cashedOut, setCashedOut] = useState(false);
-  const [betIn, setBetIn]       = useState(false);
-  const [history, setHistory]   = useState([1.23, 3.45, 1.01, 8.92, 2.11]);
+  const [betIn, setBetIn] = useState(false);
+  const [history, setHistory] = useState([1.23, 3.45, 1.01, 8.92, 2.11]);
   const intervalRef = useRef(null);
 
   const startRound = async () => {
@@ -219,10 +227,12 @@ export function CrashGame() {
       setCashedOut(false);
       setMultiplier(1.00);
       setRunning(true);
+      
       let current = 1.00;
       intervalRef.current = setInterval(() => {
         current = parseFloat((current * 1.015).toFixed(2));
         setMultiplier(current);
+        
         if (current >= data.crashPoint) {
           clearInterval(intervalRef.current);
           setCrashed(true);
@@ -233,7 +243,9 @@ export function CrashGame() {
           refresh();
         }
       }, 100);
-    } catch (err) { toast.error(err.response?.data?.error || err.message); }
+    } catch (err) { 
+      toast.error(err.response?.data?.error || err.message); 
+    }
   };
 
   const cashout = async () => {
@@ -246,41 +258,150 @@ export function CrashGame() {
       setRunning(false);
       toast.success(`💰 Cashout ${multiplier.toFixed(2)}x! +${formatPoints(data.winPoints)}`);
       refresh();
-    } catch (err) { toast.error(err.response?.data?.error || err.message); }
+    } catch (err) { 
+      toast.error(err.response?.data?.error || err.message); 
+    }
   };
 
   useEffect(() => () => clearInterval(intervalRef.current), []);
 
-  const multColor = crashed ? 'var(--red)' : cashedOut ? 'var(--green)' : multiplier < 2 ? 'var(--green)' : multiplier < 5 ? 'var(--orange)' : 'var(--red)';
+  const multColor = crashed 
+    ? 'var(--red)' 
+    : cashedOut 
+    ? 'var(--green)' 
+    : multiplier < 2 
+    ? 'var(--green)' 
+    : multiplier < 5 
+    ? 'var(--orange)' 
+    : 'var(--red)';
+
+  // --- CÁLCULO DA POSIÇÃO DO AVIÃO ---
+  // Limita os valores entre 0% e 80% para o avião não fugir da caixa visual antes do crash
+  const progressX = Math.min((multiplier - 1) * 15, 80); 
+  const progressY = Math.min((multiplier - 1) * 12, 70);
 
   return (
     <div className="max-w-2xl mx-auto">
       <Card>
+        {/* Histórico */}
         <div className="flex gap-2 mb-4 flex-wrap">
           {history.map((h, i) => (
-            <Badge key={i} color={h < 2 ? 'red' : h < 5 ? 'orange' : 'green'}>{h.toFixed(2)}x</Badge>
+            <Badge key={i} color={h < 2 ? 'red' : h < 5 ? 'orange' : 'green'}>
+              {h.toFixed(2)}x
+            </Badge>
           ))}
         </div>
-        <div className="h-44 bg-bg4 rounded-xl flex items-center justify-center relative overflow-hidden mb-4 border border-border">
-          {crashed && <span className="absolute top-3 right-3 text-red text-xs font-bold">💥 CRASHED</span>}
-          {cashedOut && <span className="absolute top-3 right-3 text-success text-xs font-bold">✅ CASHOUT</span>}
-          <motion.div
-            key={Math.floor(multiplier * 10)}
-            className="text-6xl font-black tracking-tight"
-            style={{ color: multColor }}
-            animate={running && !crashed ? { scale: [1, 1.02, 1] } : {}}
-            transition={{ repeat: Infinity, duration: 0.4 }}
-          >
-            {multiplier.toFixed(2)}x
-          </motion.div>
+
+        {/* Ecrã de Voo Animado (Aviator Style) */}
+        <div className="h-56 bg-bg4 rounded-xl flex items-center justify-center relative overflow-hidden mb-4 border border-border bg-gradient-to-b from-slate-900 via-slate-950 to-black">
+          
+          {/* Linhas de Grelha de Gráfico ao fundo para dar sensação de movimento */}
+          <div className="absolute inset-0 opacity-10 pointer-events-none bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:24px_24px]" />
+
+          {/* Status Indicators */}
+          <AnimatePresence>
+            {crashed && (
+              <motion.span 
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="absolute top-3 right-3 bg-red/20 text-red px-2 py-0.5 rounded text-xs font-bold border border-red/30 z-10"
+              >
+                💥 CRASHED
+              </motion.span>
+            )}
+            {cashedOut && (
+              <motion.span 
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="absolute top-3 right-3 bg-green/20 text-success px-2 py-0.5 rounded text-xs font-bold border border-green/30 z-10"
+              >
+                ✅ CASHOUT
+              </motion.span>
+            )}
+          </AnimatePresence>
+
+          {/* Multiplicador Central */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <motion.div
+              key={Math.floor(multiplier * 10)}
+              className="text-6xl font-black tracking-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
+              style={{ color: multColor }}
+              animate={running && !crashed ? { scale: [1, 1.04, 1] } : {}}
+              transition={{ repeat: Infinity, duration: 0.4 }}
+            >
+              {multiplier.toFixed(2)}x
+            </motion.div>
+          </div>
+
+          {/* O Avião e o Rasto de Fumo */}
+          {running && !crashed && (
+            <motion.div 
+              className="absolute left-6 bottom-6 w-full h-full pointer-events-none"
+              style={{ x: `${progressX}%`, y: `-${progressY}%` }}
+              transition={{ type: 'tween', ease: 'linear' }}
+            >
+              {/* Linha de rasto curva do avião */}
+              <svg className="absolute overflow-visible w-full h-full left-0 top-0 pointer-events-none">
+                <motion.path
+                  d={`M 0 160 Q ${progressX / 2} ${160 - progressY / 2}, ${progressX} ${160 - progressY}`}
+                  fill="none"
+                  stroke="rgba(239, 68, 68, 0.4)"
+                  strokeWidth="3"
+                  strokeDasharray="4 4"
+                />
+              </svg>
+
+              {/* O Avião propriamente dito */}
+              <motion.div 
+                className="absolute text-red-500 bottom-0 left-0"
+                animate={{ y: [0, -4, 0] }}
+                transition={{ repeat: Infinity, duration: 1, ease: "easeInOut" }}
+                style={{ transform: 'rotate(-15deg)' }}
+              >
+                <Plane size={36} className="fill-current text-red shadow-lg transform -rotate-45" />
+                
+                {/* Propulsor / Foguete visual traseiro */}
+                <span className="absolute -left-2 top-3 w-2 h-2 rounded-full bg-orange animate-ping opacity-75" />
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* Estado de Espera (Antes do Jogo Começar) */}
+          {!running && !crashed && !cashedOut && (
+            <div className="absolute bottom-6 left-6 text-slate-500 flex items-center gap-2 text-sm font-medium">
+              <Plane size={18} className="animate-pulse" />
+              Avião pronto na pista...
+            </div>
+          )}
         </div>
-        <Input label="💎 Aposta (pts)" type="number" min="1" step="1" value={bet}
-          onChange={e => setBet(+e.target.value)} disabled={running} />
-        <div className="flex gap-3">
-          <Button onClick={startRound} disabled={running} className="flex-1 py-3">🚀 Iniciar</Button>
-          <Button onClick={cashout} disabled={!running || cashedOut}
-            className="flex-1 py-3" style={{ background: 'var(--green)', color: '#fff' }}>
-            💵 Cashout — {formatPoints(bet * multiplier)}
+
+        {/* Inputs e Controlos de Aposta */}
+        <Input 
+          label="💎 Aposta (pts)" 
+          type="number" 
+          min="1" 
+          step="1" 
+          value={bet}
+          onChange={e => setBet(+e.target.value)} 
+          disabled={running} 
+        />
+
+        <div className="flex gap-3 mt-4">
+          <Button 
+            onClick={startRound} 
+            disabled={running} 
+            className="flex-1 py-3 flex items-center justify-center gap-2"
+          >
+            <Rocket size={18} /> Iniciar
+          </Button>
+          
+          <Button 
+            onClick={cashout} 
+            disabled={!running || cashedOut}
+            className="flex-1 py-3 flex items-center justify-center gap-2 transition-all font-bold" 
+            style={{ background: 'var(--green)', color: '#fff' }}
+          >
+            <DollarSign size={18} /> Cashout — {formatPoints(bet * multiplier)}
           </Button>
         </div>
       </Card>
