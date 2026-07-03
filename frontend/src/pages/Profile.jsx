@@ -26,13 +26,14 @@ export default function Profile() {
     }
   }, [invData]);
 
-  const history   = stateData?.history || [];
+  const history = stateData?.history || [];
 
   const setAvatar = async (av) => {
     try {
       await api.put('/users/profile', { avatar: av });
       toast.success('Avatar atualizado!');
-      await refresh(); // Força a atualização do estado global de imediato
+      setCustomAvatar(''); // Limpa o input de texto após o sucesso
+      await refresh();     // Força a atualização do estado global de imediato
     } catch (_) {
       toast.error('Não foi possível atualizar o avatar');
     }
@@ -44,7 +45,6 @@ export default function Profile() {
     // Atualização imediata no frontend (Otimista)
     const updated = localInventory.filter(i => i.inventory_id !== item.inventory_id);
     setLocalInventory(updated);
-    mutateInv({ ...invData, inventory: updated }, false);
 
     try {
       await api.post('/skins/sell', { inventoryId: item.inventory_id });
@@ -53,7 +53,6 @@ export default function Profile() {
     } catch (err) {
       // Reverte se der erro
       setLocalInventory(localInventory);
-      mutateInv(invData, false);
       toast.error(err.response?.data?.error || 'Erro ao vender');
     }
   };
@@ -63,7 +62,6 @@ export default function Profile() {
     const totalEst = localInventory.reduce((acc, curr) => acc + Math.round((curr.points_value || 0) * 0.85), 0);
     
     setLocalInventory([]);
-    mutateInv({ ...invData, inventory: [] }, false);
 
     try {
       await Promise.all(
@@ -72,7 +70,6 @@ export default function Profile() {
       toast.success(`🎉 Vendido tudo por ~${formatNumber(totalEst)} pts!`);
       await refresh();
     } catch (err) {
-      mutateInv();
       toast.error('Erro ao processar as vendas.');
       await refresh();
     }
