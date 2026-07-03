@@ -9,6 +9,7 @@ import Register from '../pages/Register';
 // Pages
 import Dashboard   from '../pages/Dashboard';
 import Profile     from '../pages/Profile';
+import Inventory   from '../pages/Inventory'; // Adicionado aqui
 import Minigames   from '../pages/Minigames';
 import Apostas     from '../pages/Apostas';
 import Giveaways   from '../pages/Giveaways';
@@ -42,6 +43,7 @@ export default function AppRouter() {
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route index            element={<Dashboard />} />
         <Route path="profile"   element={<Profile />} />
+        <Route path="inventory" element={<Inventory />} /> {/* Adicionado aqui */}
         <Route path="minigames" element={<Minigames />} />
         <Route path="mines"     element={<MinesPage />} />
         <Route path="coinflip"  element={<CoinflipPage />} />

@@ -4,12 +4,13 @@ import {
   LayoutDashboard, User, Gift,
   Trophy, Gamepad2, Dices, Package, CircleDollarSign,
   Bomb, TrendingUp, Club, Disc3, Layers, Joystick,
-  ChevronLeft, ChevronRight, ShieldCheck,
+  ChevronLeft, ChevronRight, ShieldCheck, Briefcase
 } from 'lucide-react';
 
 const MAIN_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard',    path: '/' },
   { icon: User,            label: 'Meu Perfil',   path: '/profile' },
+  { icon: Briefcase,       label: 'Inventário',   path: '/inventory' }, // Adicionado aqui
   { icon: Gift,            label: 'Giveaways',    path: '/giveaways' },
   { icon: Trophy,          label: 'Classificação',path: '/leaderboard' },
 ];
@@ -101,27 +102,21 @@ export default function Sidebar({ collapsed, onToggle }) {
         )}
       </div>
 
-      {/* Toggle button — fica DENTRO dos limites da sidebar (que tem
-          overflow-hidden), senão fica cortado e invisível */}
       <button
         onClick={onToggle}
         className="absolute top-[18px] right-2 w-6 h-6 bg-bg3 border border-border2 rounded-full
           flex items-center justify-center text-text2 hover:text-orange hover:border-orange
           transition-colors z-50 shadow-card"
       >
-        {collapsed
-          ? <ChevronRight size={12} />
-          : <ChevronLeft  size={12} />}
+        {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
       </button>
 
-      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2">
         {MAIN_ITEMS.map(item => <NavItem key={item.path} {...item} />)}
 
         <SectionLabel>Minigames</SectionLabel>
         {GAME_ITEMS.map(item => <NavItem key={item.path} {...item} />)}
 
-        {/* Acesso de administrador — discreto, protegido por password no backend */}
         <div className="mt-3 pt-3 border-t border-border">
           <NavItem icon={ShieldCheck} label="Admin" path="/admin" />
         </div>
