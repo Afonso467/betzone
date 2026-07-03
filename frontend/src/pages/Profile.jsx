@@ -145,14 +145,30 @@ export default function Profile() {
           {inventory.length === 0
             ? <p className="text-text3 text-sm text-center py-6">Inventário vazio</p>
             : <div className="grid grid-cols-2 gap-2">
-                {inventory.slice(0, 6).map((item, i) => (
-                  <div key={i} className="bg-bg4 border border-border rounded-[10px] p-2 text-center">
-                    <div className="text-2xl mb-1">{item.emoji || '🔫'}</div>
-                    <div className="text-xs font-semibold truncate">{item.name}</div>
-                    <div className="text-xs text-text2">{item.wear}</div>
-                    <div className="text-xs text-blue font-semibold mt-0.5">{formatNumber(item.points_value)} pts</div>
-                  </div>
-                ))}
+                {inventory.slice(0, 6).map((item, i) => {
+                  const sellValue = Math.round((item.points_value || 0) * 0.85);
+                  return (
+                    <div key={i} className="bg-bg4 border border-border rounded-[10px] p-2 text-center">
+                      <div className="text-2xl mb-1">{item.emoji || '🔫'}</div>
+                      <div className="text-xs font-semibold truncate">{item.name}</div>
+                      <div className="text-xs text-text2">{item.wear}</div>
+                      <div className="text-xs text-blue font-semibold mt-0.5 mb-2">{formatNumber(item.points_value)} pts</div>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await api.post('/skins/sell', { inventoryId: item.inventory_id });
+                            toast.success(`Vendido por ${formatNumber(sellValue)} pts!`);
+                            refresh();
+                          } catch (err) {
+                            toast.error(err.response?.data?.error || 'Erro ao vender');
+                          }
+                        }}
+                        className="w-full py-1 rounded-lg text-[10px] font-bold bg-danger/10 text-red border border-red/20 hover:bg-red hover:text-white transition-all">
+                        Vender — {formatNumber(sellValue)} pts
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
           }
         </Card>

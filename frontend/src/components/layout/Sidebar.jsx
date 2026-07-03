@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, User, Info, Gift, ShoppingBag,
+  LayoutDashboard, User, Gift,
   Trophy, Gamepad2, Dices, Package, CircleDollarSign,
   Bomb, TrendingUp, Club, Disc3, Layers, Joystick,
   ChevronLeft, ChevronRight, ShieldCheck,
@@ -10,9 +10,7 @@ import {
 const MAIN_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard',    path: '/' },
   { icon: User,            label: 'Meu Perfil',   path: '/profile' },
-  { icon: Info,            label: 'Sobre',        path: '/sobre' },
   { icon: Gift,            label: 'Giveaways',    path: '/giveaways' },
-  { icon: ShoppingBag,     label: 'Skin Market',  path: '/market' },
   { icon: Trophy,          label: 'Classificação',path: '/leaderboard' },
 ];
 

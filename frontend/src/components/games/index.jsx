@@ -1619,7 +1619,7 @@ const PAYOUT_TABLE = [
   { hand: 'two-pair',       payout: 2   },
   { hand: 'jacks-or-better',payout: 1   },
 ];
-
+ 
 function PokerCard({ card, held, faceDown, onClick }) {
   if (!card) return <div className="w-16 h-24 rounded-lg bg-bg4 border border-border2" />;
   return (
@@ -1639,7 +1639,7 @@ function PokerCard({ card, held, faceDown, onClick }) {
     </motion.div>
   );
 }
-
+ 
 export function VideoPokerGame() {
   const { refresh } = useGame();
   const [bet, setBet] = useState(50);
@@ -1649,7 +1649,7 @@ export function VideoPokerGame() {
   const [held, setHeld] = useState([]);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-
+ 
   const deal = async () => {
     setLoading(true);
     setResult(null);
@@ -1665,12 +1665,12 @@ export function VideoPokerGame() {
       setLoading(false);
     }
   };
-
+ 
   const toggleHold = (i) => {
     if (phase !== 'hold') return;
     setHeld(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
   };
-
+ 
   const draw = async () => {
     setLoading(true);
     try {
@@ -1687,72 +1687,110 @@ export function VideoPokerGame() {
       setLoading(false);
     }
   };
-
+ 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
-      {/* Tabela de pagamentos */}
-      <Card className="p-3">
-        <div className="grid grid-cols-3 gap-1">
-          {PAYOUT_TABLE.map(p => {
-            const info = HAND_LABELS[p.hand];
-            const isWinner = result?.handName === p.hand;
-            return (
-              <div key={p.hand} className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-all
-                ${isWinner ? 'bg-orange/20 ring-1 ring-orange' : 'bg-bg4'}`}>
-                <span className="text-text2 truncate">{info?.label}</span>
-                <span className="font-bold text-orange ml-1 flex-shrink-0">{p.payout}x</span>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
-      <Card>
-        {/* Mão de cartas */}
-        <div className="flex justify-center gap-2 mb-5 mt-2" style={{ minHeight: '110px' }}>
-          {phase === 'bet'
-            ? Array.from({ length: 5 }, (_, i) => <PokerCard key={i} card={null} faceDown held={false} />)
-            : hand.map((card, i) => (
-                <PokerCard key={i} card={card} held={held.includes(i)} faceDown={false}
-                  onClick={() => phase === 'hold' && toggleHold(i)} />
-              ))
-          }
-        </div>
-
-        {result && (
-          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-4">
-            <div className="text-lg font-bold mb-1" style={{ color: HAND_LABELS[result.handName]?.color }}>
-              {HAND_LABELS[result.handName]?.label}
+    <div className="max-w-5xl mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-5">
+        {/* Jogo principal */}
+        <div className="space-y-4">
+          {/* Tabela de pagamentos */}
+          <Card className="p-3">
+            <div className="grid grid-cols-3 gap-1">
+              {PAYOUT_TABLE.map(p => {
+                const info = HAND_LABELS[p.hand];
+                const isWinner = result?.handName === p.hand;
+                return (
+                  <div key={p.hand} className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-all
+                    ${isWinner ? 'bg-orange/20 ring-1 ring-orange' : 'bg-bg4'}`}>
+                    <span className="text-text2 truncate">{info?.label}</span>
+                    <span className="font-bold text-orange ml-1 flex-shrink-0">{p.payout}x</span>
+                  </div>
+                );
+              })}
             </div>
-            <Badge color={result.winPoints > 0 ? 'green' : 'red'}>
-              {result.winPoints > 0 ? `+${formatPoints(result.winPoints)} (${result.multiplier}x)` : 'Sem ganho'}
-            </Badge>
-          </motion.div>
-        )}
-
-        {phase === 'hold' && (
-          <p className="text-center text-text2 text-xs mb-3">
-            Clica nas cartas que queres guardar. As outras serão substituídas.
-          </p>
-        )}
-
-        <div className="flex gap-3 mb-3">
-          <input type="number" min="1" value={bet} disabled={phase !== 'bet' || loading}
-            onChange={e => setBet(Math.max(1, +e.target.value))}
-            className="flex-1 bg-bg3 border border-border2 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none focus:border-orange" />
-          {[10, 50, 100, 500].map(v => (
-            <button key={v} disabled={phase !== 'bet' || loading} onClick={() => setBet(v)}
-              className="px-2.5 py-2 rounded-lg bg-bg4 border border-border text-xs font-semibold hover:border-orange transition-colors disabled:opacity-40">
-              {v}
-            </button>
-          ))}
+          </Card>
+ 
+          <Card>
+            {/* Mão de cartas */}
+            <div className="flex justify-center gap-2 mb-5 mt-2" style={{ minHeight: '110px' }}>
+              {phase === 'bet'
+                ? Array.from({ length: 5 }, (_, i) => <PokerCard key={i} card={null} faceDown held={false} />)
+                : hand.map((card, i) => (
+                    <PokerCard key={i} card={card} held={held.includes(i)} faceDown={false}
+                      onClick={() => phase === 'hold' && toggleHold(i)} />
+                  ))
+              }
+            </div>
+ 
+            {result && (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+                className="text-center mb-4">
+                <div className="text-lg font-bold mb-1" style={{ color: HAND_LABELS[result.handName]?.color }}>
+                  {HAND_LABELS[result.handName]?.label}
+                </div>
+                <Badge color={result.winPoints > 0 ? 'green' : 'red'}>
+                  {result.winPoints > 0 ? `+${formatPoints(result.winPoints)} (${result.multiplier}x)` : 'Sem ganho'}
+                </Badge>
+              </motion.div>
+            )}
+ 
+            {phase === 'hold' && (
+              <p className="text-center text-text2 text-xs mb-3">
+                Clica nas cartas que queres guardar. As outras serão substituídas.
+              </p>
+            )}
+ 
+            <div className="flex gap-3 mb-3">
+              <input type="number" min="1" value={bet} disabled={phase !== 'bet' || loading}
+                onChange={e => setBet(Math.max(1, +e.target.value))}
+                className="flex-1 bg-bg3 border border-border2 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none focus:border-orange" />
+              {[10, 50, 100, 500].map(v => (
+                <button key={v} disabled={phase !== 'bet' || loading} onClick={() => setBet(v)}
+                  className="px-2.5 py-2 rounded-lg bg-bg4 border border-border text-xs font-semibold hover:border-orange transition-colors disabled:opacity-40">
+                  {v}
+                </button>
+              ))}
+            </div>
+ 
+            {phase === 'bet' && <Button onClick={deal} loading={loading} className="w-full py-3">🃏 Distribuir — {formatPoints(bet)}</Button>}
+            {phase === 'hold' && <Button onClick={draw} loading={loading} className="w-full py-3">🎴 Trocar Cartas</Button>}
+            {phase === 'done' && <Button onClick={() => { setPhase('bet'); setHand([]); setResult(null); setHeld([]); }} className="w-full py-3">🔄 Nova Mão</Button>}
+          </Card>
         </div>
-
-        {phase === 'bet' && <Button onClick={deal} loading={loading} className="w-full py-3">🃏 Distribuir — {formatPoints(bet)}</Button>}
-        {phase === 'hold' && <Button onClick={draw} loading={loading} className="w-full py-3">🎴 Trocar Cartas</Button>}
-        {phase === 'done' && <Button onClick={() => { setPhase('bet'); setHand([]); setResult(null); setHeld([]); }} className="w-full py-3">🔄 Nova Mão</Button>}
-      </Card>
+ 
+        {/* Guia lateral de mãos */}
+        <div>
+          <Card className="sticky top-0">
+            <h3 className="font-bold text-sm mb-3">📖 Guia de Mãos</h3>
+            <div className="space-y-2.5">
+              {[
+                { emoji: '👑', name: 'Royal Flush', payout: '800x', color: '#f59e0b', desc: 'A, K, Q, J, 10 do mesmo naipe' },
+                { emoji: '🌟', name: 'Straight Flush', payout: '50x', color: '#8b5cf6', desc: '5 cartas seguidas do mesmo naipe' },
+                { emoji: '💎', name: 'Quadra', payout: '25x', color: '#3b82f6', desc: '4 cartas do mesmo valor' },
+                { emoji: '🏠', name: 'Full House', payout: '9x', color: '#10b981', desc: 'Trinca + Par' },
+                { emoji: '🌊', name: 'Flush', payout: '6x', color: '#10b981', desc: '5 cartas do mesmo naipe' },
+                { emoji: '📈', name: 'Sequência', payout: '4x', color: '#10b981', desc: '5 cartas seguidas (qualquer naipe)' },
+                { emoji: '🎯', name: 'Trinca', payout: '3x', color: '#6b7280', desc: '3 cartas do mesmo valor' },
+                { emoji: '✌️', name: 'Dois Pares', payout: '2x', color: '#6b7280', desc: 'Dois pares diferentes' },
+                { emoji: '👑', name: 'Par Alto', payout: '1x', color: '#6b7280', desc: 'Par de J, Q, K ou A' },
+              ].map((h, i) => (
+                <div key={i} className="bg-bg4 rounded-lg p-2.5">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: h.color }}>
+                      {h.emoji} {h.name}
+                    </span>
+                    <span className="text-xs font-black text-orange">{h.payout}</span>
+                  </div>
+                  <p className="text-[10px] text-text3">{h.desc}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 pt-3 border-t border-border">
+              <p className="text-[10px] text-text3 text-center">💡 Dica: guarda sempre pares ou melhor. Com mão fraca, guarda cartas altas (J, Q, K, A).</p>
+            </div>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
