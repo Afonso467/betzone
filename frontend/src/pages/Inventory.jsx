@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
-import { Card, Button, Badge } from '../components/ui';
-import { formatPoints, formatNumber } from '../utils/constants';
+import { Card, Button } from '../components/ui';
+import { formatNumber } from '../utils/constants';
 import { useApi } from '../hooks/useApi';
 import api from '../utils/api';
 
 export default function Inventory() {
   const { refresh } = useAuth();
-  const { data: invData, mutate } = useApi('/store/inventory');
+  // Removemos o 'mutate' daqui para evitar o erro caso o teu hook useApi não o suporte
+  const { data: invData } = useApi('/store/inventory'); 
   const [localInventory, setLocalInventory] = useState([]);
 
   useEffect(() => {
@@ -19,50 +20,42 @@ export default function Inventory() {
 
   const sellItem = async (item) => {
     const sellValue = Math.round((item.points_value || 0) * 0.85);
-    // Otimismo visual: remove logo do ecrã localmente antes do await terminar
+    
+    // Atualização visual instantânea (Otimista)
     const updated = localInventory.filter(i => i.inventory_id !== item.inventory_id);
     setLocalInventory(updated);
-    if (invData) mutate({ ...invData, inventory: updated }, false);
 
     try {
       await api.post('/skins/sell', { inventoryId: item.inventory_id });
       toast.success(`Vendido por ${formatNumber(sellValue)} pts!`);
-      await refresh();
+      await refresh(); // Isto vai atualizar o saldo/pontos e forçar o recarregamento
     } catch (err) {
-      // Rollback se falhar
+      // Se der erro, reverte para o estado anterior
       setLocalInventory(localInventory);
-      if (invData) mutate(invData, false);
       toast.error(err.response?.data?.error || 'Erro ao vender');
     }
   };
 
   const sellAll = async () => {
     if (localInventory.length === 0) return;
-    
-    // Calcula o valor total estimado para o feedback visual
     const totalEst = localInventory.reduce((acc, curr) => acc + Math.round((curr.points_value || 0) * 0.85), 0);
     
     // Limpa o ecrã instantaneamente
     setLocalInventory([]);
-    if (invData) mutate({ ...invData, inventory: [] }, false);
 
     try {
-      // Vende todos sequencialmente ou via endpoint próprio (se suportado pelo backend)
-      // Usando promessas paralelas para limpar o inventário
       await Promise.all(
         localInventory.map(item => api.post('/skins/sell', { inventoryId: item.inventory_id }))
       );
       toast.success(`🎉 Todos os itens foram vendidos por ~${formatNumber(totalEst)} pts!`);
       await refresh();
     } catch (err) {
-      // Restaura o inventário em caso de falha generalizada
-      if (invData) mutate();
+      // Se falhar, fazemos o refresh para trazer o que sobrou do servidor
       toast.error('Erro ao processar a venda de alguns itens.');
       await refresh();
     }
   };
 
-  // Helper para renderizar o ícone (Emoji ou Imagem URL)
   const renderIcon = (item) => {
     const isUrl = item.emoji && (item.emoji.startsWith('http://') || item.emoji.startsWith('https://') || item.emoji.startsWith('/'));
     if (isUrl) {
@@ -76,10 +69,10 @@ export default function Inventory() {
       <div className="flex justify-between items-center flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight">🎒 O Meu Inventário</h1>
-          <p className="text-text2 text-sm mt-1">Gere e vende os te’us itens obtidos</p>
+          <p className="text-text2 text-sm mt-1">Gere e vende os teus itens obtidos</p>
         </div>
         {localInventory.length > 0 && (
-          <Button onClick={sellAll} variant="danger" className="bg-red-600 hover:bg-red-700 font-bold px-4 py-2">
+          <Button onClick={sellAll} className="bg-red-600 hover:bg-red-700 font-bold px-4 py-2">
             💥 Vender Tudo ({localInventory.length} itens)
           </Button>
         )}

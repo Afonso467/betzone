@@ -10,7 +10,7 @@ const AVATARS = ['🎮','🔥','💎','👑','⚔️','🐺','🦅','🌀','🎯
 
 export default function Profile() {
   const { user, refresh } = useAuth();
-  const { data: invData, mutate: mutateInv } = useApi('/store/inventory');
+  const { data: invData } = useApi('/store/inventory');
   const { data: stateData } = useApi('/games/state');
 
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirm: '' });
