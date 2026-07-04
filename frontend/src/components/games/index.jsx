@@ -1352,39 +1352,39 @@ export function DiceGame() {
     setRolling(true);
     setResult(null);
     setGameMessage(null);
+
+    // 🛠️ 2. CRIAR PROMISES EM PARALELO (O segredo do suspense)
+    // Forçamos o ecrã a rodar números durante pelo menos 1500ms (1.5s)
+    const delayPromise = new Promise(resolve => setTimeout(resolve, 1500));
+    const apiPromise = api.post('/games/dice', { betPoints: bet, target, direction });
     
     try {
-      // O pedido é disparado em background e a resposta real fica "na manga"
-      const { data } = await api.post('/games/dice', { betPoints: bet, target, direction });
+      // Aguarda que as DUAS coisas terminem: a resposta do servidor E o tempo de 1.5s
+      const [_, apiResponse] = await Promise.all([delayPromise, apiPromise]);
+      const { data } = apiResponse;
 
-      // 🛠️ 2. ANIMAÇÃO CONTROLADA (700ms de suspense)
-      // Bloqueamos qualquer alteração na carteira até os números pararem de piscar
-      setTimeout(async () => {
-        setResult(data);
-        setDisplayRoll(data.roll);
-        
-        // 🛠️ 3. REVELAÇÃO DO SALDO FINAL SÓ NO FIM DE TUDO
-        updatePoints(data.points);
-        await refresh();
-        
-        if (data.won) {
-          setGameMessage({
-            type: 'win',
-            text: `🎉 Ganhaste! O dado deu ${data.roll}. Recebeste +${formatPoints(data.winPoints)} pts!`
-          });
-        } else {
-          setGameMessage({
-            type: 'loss',
-            text: `❌ Não foi desta vez! O dado deu ${data.roll}.`
-          });
-        }
-        setRolling(false);
-      }, 700);
+      // 🛠️ 3. REVELAÇÃO DO SALDO FINAL (Só acontece após os 1.5s garantidos)
+      setResult(data);
+      setDisplayRoll(data.roll);
+      updatePoints(data.points);
+      await refresh();
+      
+      if (data.won) {
+        setGameMessage({
+          type: 'win',
+          text: `🎉 Ganhaste! O dado deu ${data.roll}. Recebeste +${formatPoints(data.winPoints)} pts!`
+        });
+      } else {
+        setGameMessage({
+          type: 'loss',
+          text: `❌ Não foi desta vez! O dado deu ${data.roll}.`
+        });
+      }
+      setRolling(false);
 
     } catch (err) {
       setRolling(false);
-      // Se a rota do servidor falhar por completo, devolvemos os pontos ao cliente
-      refresh();
+      refresh(); // Se falhar, faz rollback dos pontos
       setGameMessage({
         type: 'error',
         text: err.response?.data?.error || err.message || 'Erro no processamento'
