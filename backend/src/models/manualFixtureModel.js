@@ -4,9 +4,9 @@ const ManualFixtureModel = {
   async create(data) {
     const [res] = await pool.query(
       `INSERT INTO manual_fixtures
-         (competition, round_label, home_team, away_team, home_logo, away_logo,
-          kickoff_at, odds_home, odds_draw, odds_away, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', NOW())`,
+          (competition, round_label, home_team, away_team, home_logo, away_logo,
+           kickoff_at, odds_home, odds_draw, odds_away, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', NOW())`,
       [
         data.competition, data.roundLabel || null, data.homeTeam, data.awayTeam,
         data.homeLogo, data.awayLogo, data.kickoffAt,
@@ -23,12 +23,14 @@ const ManualFixtureModel = {
     return rows;
   },
 
-  async getById(id) {
-    const [rows] = await pool.query('SELECT * FROM manual_fixtures WHERE id = ?', [id]);
+  // 🛠️ ADICIONADO: Suporte a conn para leitura segura antes de atualizações
+  async getById(id, conn = pool) {
+    const [rows] = await conn.query('SELECT * FROM manual_fixtures WHERE id = ?', [id]);
     return rows[0] || null;
   },
 
-  async update(id, data) {
+  // 🛠️ ADICIONADO: Suporte a conn para atualizações em bloco
+  async update(id, data, conn = pool) {
     const fields = [];
     const values = [];
     const allowed = ['competition', 'roundLabel', 'homeTeam', 'awayTeam', 'homeLogo', 'awayLogo', 'kickoffAt', 'oddsHome', 'oddsDraw', 'oddsAway', 'status'];
@@ -44,15 +46,15 @@ const ManualFixtureModel = {
       }
     }
     if (!fields.length) return;
-    await pool.query(
+    await conn.query(
       `UPDATE manual_fixtures SET ${fields.join(', ')}, updated_at = NOW() WHERE id = ?`,
-      [...values, id]
+      ...[values, id]
     );
   },
 
-  // Define o resultado final do jogo (1, X ou 2) e o marca como terminado
-  async setResult(id, { goalsHome, goalsAway, result }) {
-    await pool.query(
+  // 🛠️ CRÍTICO: Agora aceita conn para rodar em sincronia com o fecho dos boletins e pagamento de prémios
+  async setResult(id, { goalsHome, goalsAway, result }, conn = pool) {
+    await conn.query(
       `UPDATE manual_fixtures
        SET goals_home = ?, goals_away = ?, result = ?, status = 'finished', settled_at = NOW(), updated_at = NOW()
        WHERE id = ?`,
@@ -60,8 +62,8 @@ const ManualFixtureModel = {
     );
   },
 
-  async setStatus(id, status) {
-    await pool.query('UPDATE manual_fixtures SET status = ?, updated_at = NOW() WHERE id = ?', [status, id]);
+  async setStatus(id, status, conn = pool) {
+    await conn.query('UPDATE manual_fixtures SET status = ?, updated_at = NOW() WHERE id = ?', [status, id]);
   },
 
   async remove(id) {

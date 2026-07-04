@@ -11,9 +11,9 @@ const UserModel = {
     return result.insertId;
   },
 
-  // Versão pública (sem password_hash) — usada em quase todo o lado
-  async findById(id) {
-    const [rows] = await pool.query(
+  // 🛠️ CORRIGIDO: Agora aceita conn para ler o saldo atualizado de dentro da transação do jogo!
+  async findById(id, conn = pool) {
+    const [rows] = await conn.query(
       `SELECT id, username, email, avatar, points, xp, xp_next, level, wins, losses, active, last_claim_at, created_at
        FROM users WHERE id = ?`,
       [id]
@@ -57,7 +57,7 @@ const UserModel = {
     if (!updates.length) return;
     await pool.query(
       `UPDATE users SET ${updates.join(', ')}, updated_at = NOW() WHERE id = ?`,
-      [...values, id]
+      ...[values, id]
     );
   },
 
@@ -83,8 +83,6 @@ const UserModel = {
   },
 
   // Resgate de pontos grátis a cada X minutos. Tudo numa única query atómica
-  // (UPDATE condicional) — evita que um duplo-clique ou dois pedidos em
-  // paralelo consigam resgatar duas vezes antes de "last_claim_at" gravar.
   async claimFreePoints(id, amount, cooldownMinutes) {
     const [result] = await pool.query(
       `UPDATE users
@@ -100,11 +98,11 @@ const UserModel = {
   async addXP(id, amount, conn = pool) {
     await conn.query(
       `UPDATE users SET
-         xp = xp + ?,
-         level = FLOOR(1 + SQRT((xp + ?) / 100)),
-         xp_next = POW(FLOOR(1 + SQRT((xp + ?) / 100)) + 1, 2) * 100,
-         updated_at = NOW()
-       WHERE id = ?`,
+          xp = xp + ?,
+          level = FLOOR(1 + SQRT((xp + ?) / 100)),
+          xp_next = POW(FLOOR(1 + SQRT((xp + ?) / 100)) + 1, 2) * 100,
+          updated_at = NOW()
+        WHERE id = ?`,
       [amount, amount, amount, id]
     );
   },

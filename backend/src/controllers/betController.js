@@ -1,14 +1,13 @@
 const UserModel = require('../models/userModel');
 const BetModel  = require('../models/betModel');
 const ManualFixtureModel = require('../models/manualFixtureModel');
+const { pool } = require('../config/database'); // 🛠️ IMPORTADO: Necessário para gerir a transação global
 const { asyncHandler, createError } = require('../middleware/errorHandler');
 
 // Converte uma linha de manual_fixtures para o formato usado no frontend
 function toFixtureDTO(f) {
   const now = new Date();
   const kickoff = new Date(f.kickoff_at);
-  // Se a hora do jogo já passou e o admin ainda não marcou status, mostramos
-  // "live" como sugestão visual — mas o status real só muda quando o admin o define.
   let status = f.status;
   if (status === 'scheduled' && kickoff <= now) status = 'live';
 
@@ -47,33 +46,55 @@ const placeBet = asyncHandler(async (req, res) => {
     throw createError('Não podes incluir o mesmo jogo duas vezes numa aposta múltipla', 400);
   }
 
-  // Validar que todos os jogos existem e ainda aceitam apostas
-  for (const sel of selections) {
-    const fixture = await ManualFixtureModel.getById(sel.fixtureId);
-    if (!fixture) throw createError(`Jogo ${sel.fixtureId} não encontrado`, 404);
-    if (fixture.status === 'finished' || fixture.status === 'cancelled') {
-      throw createError(`O jogo ${fixture.home_team} vs ${fixture.away_team} já não aceita apostas`, 400);
+  // 🛠️ 1. Iniciamos uma Conexão e Transação Única para todo o processo
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Validar que todos os jogos existem e ainda aceitam apostas (Lendo de dentro da transação)
+    for (const sel of selections) {
+      const fixture = await ManualFixtureModel.getById(sel.fixtureId, conn); // 🛠️ Injetado 'conn'
+      if (!fixture) throw createError(`Jogo ${sel.fixtureId} não encontrado`, 404);
+      if (fixture.status === 'finished' || fixture.status === 'cancelled') {
+        throw createError(`O jogo ${fixture.home_team} vs ${fixture.away_team} já não aceita apostas`, 400);
+      }
     }
+
+    // Verificar saldo de forma segura dentro da transação
+    const user = await UserModel.findById(userId, conn); // 🛠️ Injetado 'conn'
+    if (user.points < stake) throw createError('Pontos insuficientes', 400);
+
+    const combinedOdds = selections.reduce((acc, s) => acc * parseFloat(s.odds), 1);
+    const potentialWin = Math.round(stake * combinedOdds);
+
+    // Deduzir os pontos usando a transação ativa
+    await UserModel.adjustPoints(userId, -stake, conn); // 🛠️ Injetado 'conn'
+
+    // Criar o boletim e as seleções acopladas na mesma transação
+    const slipId = await BetModel.createSlip({
+      userId, stake, combinedOdds, potentialWin,
+      selections: selections.map(s => ({ ...s, fixtureId: String(s.fixtureId) })),
+    }, conn); // 🛠️ Injetado 'conn' (o BetModel modificado vai herdar e não duplicar o beginTransaction)
+
+    // Buscar o utilizador atualizado com o saldo pós-aposta antes do commit
+    const updated = await UserModel.findById(userId, conn); // 🛠️ Injetado 'conn'
+
+    // Gravar tudo em simultâneo na Base de Dados
+    await conn.commit();
+
+    res.status(201).json({
+      message: selections.length > 1 ? 'Aposta múltipla colocada!' : 'Aposta colocada!',
+      slipId, combinedOdds, potentialWin, points: updated.points,
+    });
+
+  } catch (err) {
+    // Se algo falhar em qualquer etapa, desfaz TUDO (incluindo o desconto dos pontos)
+    await conn.rollback();
+    throw err;
+  } finally {
+    // Libertar obrigatoriamente a conexão de volta para o pool
+    conn.release();
   }
-
-  const user = await UserModel.findById(userId);
-  if (user.points < stake) throw createError('Pontos insuficientes', 400);
-
-  const combinedOdds = selections.reduce((acc, s) => acc * parseFloat(s.odds), 1);
-  const potentialWin = Math.round(stake * combinedOdds);
-
-  await UserModel.adjustPoints(userId, -stake);
-
-  const slipId = await BetModel.createSlip({
-    userId, stake, combinedOdds, potentialWin,
-    selections: selections.map(s => ({ ...s, fixtureId: String(s.fixtureId) })),
-  });
-
-  const updated = await UserModel.findById(userId);
-  res.status(201).json({
-    message: selections.length > 1 ? 'Aposta múltipla colocada!' : 'Aposta colocada!',
-    slipId, combinedOdds, potentialWin, points: updated.points,
-  });
 });
 
 // ── GET /api/bets/mine ────────────────────────────────────────────────────────

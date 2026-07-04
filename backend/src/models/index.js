@@ -41,8 +41,9 @@ const SkinModel = {
     return rows;
   },
 
-  async findById(id) {
-    const [rows] = await pool.query('SELECT * FROM skins WHERE id = ? AND active = 1', [id]);
+  async findById(id, conn = pool) {
+    // Adicionado conn opcional para consultas seguras durante abertura de caixas
+    const [rows] = await conn.query('SELECT * FROM skins WHERE id = ? AND active = 1', [id]);
     return rows[0] || null;
   },
 };
@@ -54,13 +55,15 @@ const CaseModel = {
     return rows;
   },
 
-  async findById(id) {
-    const [rows] = await pool.query('SELECT * FROM cases WHERE id = ? AND active = 1', [id]);
+  // 🛠️ CORRIGIDO: Agora aceita conn para rodar dentro da transação do jogo
+  async findById(id, conn = pool) {
+    const [rows] = await conn.query('SELECT * FROM cases WHERE id = ? AND active = 1', [id]);
     return rows[0] || null;
   },
 
-  async getItems(caseId) {
-    const [rows] = await pool.query(
+  // 🛠️ CORRIGIDO: Agora aceita conn para buscar os itens sem travar o MySQL
+  async getItems(caseId, conn = pool) {
+    const [rows] = await conn.query(
       `SELECT ci.chance, s.* FROM case_items ci JOIN skins s ON ci.skin_id = s.id
        WHERE ci.case_id = ? ORDER BY ci.chance DESC`,
       [caseId]
@@ -113,8 +116,9 @@ const GiveawayModel = {
 
 // ── Notificações ─────────────────────────────────────────────────────────────
 const NotificationModel = {
-  async create(userId, { title, body, type = 'info' }) {
-    await pool.query(
+  // Adicionado conn opcional caso queiras criar notificações automáticas após prémios de jogos
+  async create(userId, { title, body, type = 'info' }, conn = pool) {
+    await conn.query(
       'INSERT INTO notifications (user_id, title, body, type, read_at, created_at) VALUES (?, ?, ?, ?, NULL, NOW())',
       [userId, title, body, type]
     );
@@ -147,9 +151,6 @@ const NotificationModel = {
 // ── Leaderboard ──────────────────────────────────────────────────────────────
 const LeaderboardModel = {
   async getTop(limit = 50) {
-    // Evitamos RANK() OVER (...) — função de janela que pode não estar
-    // disponível em todas as versões/configurações de MySQL/MariaDB.
-    // Calculamos o rank manualmente em JS a partir da ordem da query.
     const [rows] = await pool.query(
       `SELECT id, username, avatar, level, xp, points, wins
        FROM users WHERE active = 1
@@ -160,12 +161,9 @@ const LeaderboardModel = {
   },
 
   async getUserRank(userId) {
-    // Conta quantos utilizadores têm XP estritamente maior — essa contagem
-    // + 1 é a posição (rank) do utilizador, sem precisar de window functions.
-    // "rank" é palavra reservada no MySQL — tem de ir entre crases (`rank`).
     const [rows] = await pool.query(
       `SELECT
-         (SELECT COUNT(*) FROM users WHERE active = 1 AND xp > target.xp) + 1 AS \`rank\`
+          (SELECT COUNT(*) FROM users WHERE active = 1 AND xp > target.xp) + 1 AS \`rank\`
        FROM users target WHERE target.id = ?`,
       [userId]
     );
