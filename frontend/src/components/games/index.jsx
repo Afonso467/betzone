@@ -522,233 +522,120 @@ export function CrashGame() {
 // ── CASE OPENING ─────────────────────────────────────────────────────────────
 
 export function CaseOpeningGame() {
-
   const { refresh } = useGame();
-
   const [cases, setCases]         = useState([]);
-
   const [loadingCases, setLoadingCases] = useState(true);
-
   const [selectedCase, setSelectedCase] = useState(null);
-
   const [spinning, setSpinning]   = useState(false);
-
   const [result, setResult]       = useState(null);
-
   const [reelOffset, setReelOffset] = useState(0);
-
   const [reelItems, setReelItems] = useState([]);
-
   const reelContainerRef = useRef(null);
-
-  const ITEM_W = 88; // px (80px item + 8px gap)
-
+  const ITEM_W = 88;
   const WINNING_INDEX = 45;
 
-
-
-  // Carrega a lista de caixas disponíveis (com os seus itens reais) ao montar
-
   useEffect(() => {
-
     api.get('/games/cases')
-
       .then(({ data }) => {
-
         setCases(data.cases || []);
-
         if (data.cases?.length) setSelectedCase(data.cases[0]);
-
       })
-
       .catch(() => toast.error('Não foi possível carregar as caixas'))
-
       .finally(() => setLoadingCases(false));
-
   }, []);
 
-
-
   const openCase = async () => {
-
     if (!selectedCase) return;
-
     setSpinning(true);
-
     setResult(null);
-
     try {
-
       const { data } = await api.post('/games/cases/open', { caseId: selectedCase.id });
-
-
-
-      // Construir o rolo de animação usando os itens REAIS desta caixa
-
-      // O item sorteado fica exatamente no índice WINNING_INDEX (45),
-
-      // que é o índice para o qual o cálculo de "target" abaixo aponta.
-
       const caseItems = selectedCase.items || [];
-
       const reel = Array(60).fill(null).map(() => caseItems[Math.floor(Math.random() * caseItems.length)]);
-
       reel[WINNING_INDEX] = data.item;
-
       setReelItems(reel);
-
       setReelOffset(0);
-
-
-
-      // Largura real do contentor visível (a roleta) — necessária para
-
-      // centrar o item ganho exatamente debaixo do seletor laranja.
-
       const containerWidth = reelContainerRef.current?.offsetWidth || 600;
-
-      const INNER_PADDING = 8; // px — corresponde ao "p-2" do contentor interno do rolo
-
-      // Posição do centro do item WINNING_INDEX dentro do rolo (já com o padding):
-
+      const INNER_PADDING = 8;
       const itemCenter = INNER_PADDING + WINNING_INDEX * ITEM_W + ITEM_W / 2;
-
-      // Deslocamento necessário para esse centro coincidir com o centro do contentor:
-
       const target = itemCenter - containerWidth / 2;
-
-
-
       let current = 0;
-
       const interval = setInterval(() => {
-
         current = Math.min(current + Math.min(60, (target - current) * 0.08 + 5), target);
-
         setReelOffset(current);
-
         if (current >= target) {
-
           clearInterval(interval);
-
           setSpinning(false);
-
           setResult(data.item);
-
           refresh();
-
           toast.success(`📦 ${data.item.name} → +${data.pointsWon} pontos!`);
-
         }
-
       }, 16);
-
     } catch (err) { setSpinning(false); toast.error(err.response?.data?.error || err.message); }
-
   };
-
-
 
   const previewItems = selectedCase?.items?.length
     ? Array(20).fill(null).map((_, i) => selectedCase.items[i % selectedCase.items.length])
     : [];
+
   if (loadingCases) {
     return <div className="flex justify-center py-20"><Spinner size={28} /></div>;
   }
 
   return (
-
     <div className="max-w-2xl mx-auto">
-
-      {/* Seleção de caixa */}
-
       <div className="mb-5">
-
         <h3 className="font-bold text-sm mb-3 text-text2">📦 Escolhe a tua caixa</h3>
-
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-
           {cases.map(c => (
-
             <button key={c.id} onClick={() => {
-
                 setSelectedCase(c);
-
                 setResult(null);
-
                 setReelItems([]);
-
                 setReelOffset(0);
-
               }}
-
               className={`bg-bg3 border-2 rounded-card p-3 text-center transition-all
-
                 ${selectedCase?.id === c.id ? 'border-orange bg-orange/5' : 'border-border hover:border-border2'}`}>
-
               <div className="text-3xl mb-1">{c.emoji}</div>
-
               <div className="text-xs font-bold truncate">{c.name}</div>
-
               <div className="text-xs text-orange font-semibold">{formatPoints(c.price)}</div>
-
             </button>
-
           ))}
-
         </div>
-
       </div>
 
-
-
       {selectedCase && (
-
         <>
-
           <Card className="text-center mb-4">
-
             <div className="text-6xl mb-2">{selectedCase.emoji}</div>
-
             <div className="font-bold text-lg">{selectedCase.name}</div>
-
             <p className="text-text2 text-xs mt-1 max-w-sm mx-auto">{selectedCase.description}</p>
-
             <div className="text-orange font-bold mt-1">{formatPoints(selectedCase.price)}</div>
-
           </Card>
 
-
-
           <Card className="mb-4">
-
             <div ref={reelContainerRef} className="relative h-24 overflow-hidden rounded-xl border border-border mb-4">
-
               <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-20 border-2 border-orange rounded-xl z-10 bg-orange/5 pointer-events-none" />
-
               <div className="absolute top-0 bottom-0 left-0 w-16 bg-gradient-to-r from-bg3 to-transparent z-10 pointer-events-none" />
-
               <div className="absolute top-0 bottom-0 right-0 w-16 bg-gradient-to-l from-bg3 to-transparent z-10 pointer-events-none" />
-              
-              <div className="absolute top-0 bottom-0 flex items-center gap-2 p-2 transition-all will-change-transform"
-                style={{ transform: `translateX(-${reelOffset}px)` }}>
-                {reelItems.map((item, i) => (
-                  <div key={i} className="w-20 h-20 bg-bg4 border border-border rounded-lg p-2 flex flex-col items-center justify-center relative flex-shrink-0">
-                    <div className="text-2xl mb-1">{item?.emoji || '🎁'}</div>
-                    <div className="text-[10px] font-bold truncate w-full text-center">{item?.name}</div>
-                    <div className="absolute bottom-0 left-0 right-0 h-1 rounded-b-lg" style={{ backgroundColor: RARITY_COLORS[item?.rarity || 'common'] }} />
+              <div className="flex gap-2 p-2 h-full" style={{ transform: `translateX(-${reelOffset}px)`, transition: 'none' }}>
+                {(reelItems.length > 0 ? reelItems : previewItems).map((item, i) => item && (
+                  <div key={i} className="w-20 flex-shrink-0 h-full rounded-lg flex flex-col items-center justify-center gap-1"
+                    style={{ background: RARITY_BG[item.rarity] || '#374151', border: `2px solid ${(RARITY_COLORS[item.rarity] || '#9ca3af')}44` }}>
+                    <span className="text-2xl">{item.emoji}</span>
+                    <span className="text-[9px] font-bold text-center px-1" style={{ color: RARITY_COLORS[item.rarity] }}>{item.rarity}</span>
                   </div>
                 ))}
               </div>
             </div>
-
-            <Button onClick={openCase} disabled={spinning} className="w-full py-3 font-bold">
-              🔑 Abrir Caixa por {formatPoints(selectedCase.price)}
+            <Button onClick={openCase} loading={spinning} className="w-full py-3">
+              📦 Abrir {selectedCase.name} — {formatPoints(selectedCase.price)}
             </Button>
           </Card>
         </>
       )}
-       <AnimatePresence>
+
+      <AnimatePresence>
         {result && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             <Card className="text-center" style={{ border: `2px solid ${(RARITY_COLORS[result.rarity] || '#9ca3af')}55` }}>
@@ -764,7 +651,6 @@ export function CaseOpeningGame() {
         )}
       </AnimatePresence>
 
-      {/* Tabela de probabilidades + pontos da caixa selecionada */}
       {selectedCase?.items?.length > 0 && (
         <Card className="mt-4">
           <h3 className="font-bold mb-3 text-sm">📊 Itens desta caixa</h3>
