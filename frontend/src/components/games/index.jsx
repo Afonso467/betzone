@@ -540,7 +540,7 @@ const PAYOUT_TABLE = [
   { hand: 'straight',       payout: 4   },
   { hand: 'three-of-a-kind',payout: 3   },
   { hand: 'two-pair',       payout: 2   },
-  { hand: 'jacks-or-better',payout: 1   },
+  { hand: 'jacks-or-better', payout: 1   },
 ];
  
 function PokerCard({ card, held, faceDown, onClick }) {
@@ -564,7 +564,8 @@ function PokerCard({ card, held, faceDown, onClick }) {
 }
  
 export function VideoPokerGame() {
-  const { refresh } = useGame();
+  // 🛠️ CORRIGIDO: Adicionado 'user' e extraído o 'updatePoints' corretamente
+  const { user, refresh, updatePoints } = useGame();
   const [bet, setBet] = useState(50);
   const [phase, setPhase] = useState('bet'); // bet | hold | done
   const [hand, setHand] = useState([]);
@@ -574,15 +575,27 @@ export function VideoPokerGame() {
   const [loading, setLoading] = useState(false);
  
   const deal = async () => {
+    if (!user) return toast.error('Erro ao carregar dados do utilizador');
+    if (user.points < bet) return toast.error('Saldo insuficiente');
+
     setLoading(true);
     setResult(null);
     setHeld([]);
+
+    // 🛠️ 1. DEDUÇÃO LOCAL IMEDIATA DA APOSTA
+    updatePoints(user.points - bet);
+
     try {
       const { data } = await api.post('/games/poker/deal', { betPoints: bet });
+      
+      // Sincroniza o saldo deduzido oficialmente pela API
+      updatePoints(data.points);
+      
       setHand(data.hand);
       setDeck(data.deck);
       setPhase('hold');
     } catch (err) {
+      refresh(); // Se a API falhar, devolve os pontos ao utilizador
       toast.error(err.response?.data?.error || err.message);
     } finally {
       setLoading(false);
@@ -596,15 +609,34 @@ export function VideoPokerGame() {
  
   const draw = async () => {
     setLoading(true);
+
+    // Criamos um delay forçado de 400ms para simular a troca de cartas antes de atualizar a UI e os pontos
+    const delayPromise = new Promise(resolve => setTimeout(resolve, 400));
+    const apiPromise = api.post('/games/poker/hold', { hand, deck, held, betPoints: bet });
+
     try {
-      const { data } = await api.post('/games/poker/hold', { hand, deck, held, betPoints: bet });
+      const [_, apiResponse] = await Promise.all([delayPromise, apiPromise]);
+      const { data } = apiResponse;
+
+      // Primeiro atualiza as cartas e a fase visualmente
       setHand(data.finalHand);
       setResult(data);
       setPhase('done');
-      refresh();
-      if (data.winPoints > 0) toast.success(`🃏 ${HAND_LABELS[data.handName]?.label}! +${formatPoints(data.winPoints)}`);
-      else toast.error('Sem jogo desta vez');
+
+      // 🛠️ 2. COMPASSO DE ESPERA DE 300ms: Aguarda a animação das novas cartas assentar
+      setTimeout(async () => {
+        updatePoints(data.points);
+        await refresh();
+
+        if (data.winPoints > 0) {
+          toast.success(`🃏 ${HAND_LABELS[data.handName]?.label}! +${formatPoints(data.winPoints)}`);
+        } else {
+          toast.error('Sem jogo desta vez');
+        }
+      }, 300);
+
     } catch (err) {
+      refresh();
       toast.error(err.response?.data?.error || err.message);
     } finally {
       setLoading(false);
