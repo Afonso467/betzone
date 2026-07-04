@@ -1832,7 +1832,7 @@ export function BlackjackGame() {
   );
 }
 
-// ── VÍDEO POKER DEFINITIVO ────────────────────────────────────────────────────
+// ── VÍDEO POKER ────────────────────────────────────────────────────
 const HAND_LABELS = {
   'royal-flush':    { label: '🏆 Royal Flush',       color: '#f59e0b' },
   'straight-flush': { label: '🌟 Straight Flush',    color: '#8b5cf6' },
@@ -2053,14 +2053,14 @@ export function VideoPokerGame() {
   );
 }
 
-// ── SLOTS ──────────────────────────────────────────────────────────────────────
+// ── SLOTS DEFINITIVO ──────────────────────────────────────────────────────────
 const SYMBOL_COLORS = {
   cherry: '#ef4444', lemon: '#eab308', orange: '#f97316', grape: '#8b5cf6',
   melon: '#10b981', bell: '#f59e0b', star: '#3b82f6', diamond: '#06b6d4', seven: '#dc2626',
 };
 
 export function SlotsGame() {
-  const { refresh } = useGame();
+  const { user, refresh, updatePoints } = useGame();
   const [bet, setBet] = useState(50);
   const [spinning, setSpinning] = useState(false);
   const [displayReels, setDisplayReels] = useState([{ emoji: '❓' }, { emoji: '❓' }, { emoji: '❓' }]);
@@ -2070,11 +2070,17 @@ export function SlotsGame() {
   const SYMBOLS = ['🍒', '🍋', '🍊', '🍇', '🔔', '⭐', '💎', '7️⃣'];
 
   const spin = async () => {
+    if (spinning) return;
+    if (!user) return toast.error('Erro ao carregar dados do utilizador');
+    if (user.points < bet) return toast.error('Saldo insuficiente');
+
+    // 🔥 INSTANTÂNEO: Bloqueia o estado e remove a aposta da carteira na hora!
     setSpinning(true);
     setResult(null);
+    updatePoints(user.points - bet);
     setAnimatingReels([true, true, true]);
 
-    // Loop rápido de símbolos aleatórios para simular a rotação
+    // Loop de rotação visual rápida
     const interval = setInterval(() => {
       setDisplayReels([
         { emoji: SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)] },
@@ -2086,7 +2092,7 @@ export function SlotsGame() {
     try {
       const { data } = await api.post('/games/slots', { betPoints: bet });
 
-      // Sequência de travagem realista (Rolo 1 -> Rolo 2 -> Rolo 3)
+      // Sequência de paragem dos rolos
       setTimeout(() => {
         clearInterval(interval);
         
@@ -2099,21 +2105,23 @@ export function SlotsGame() {
           setAnimatingReels([false, false, true]);
           setDisplayReels(prev => [data.reels[0], data.reels[1], prev[2]]);
 
-          setTimeout(() => {
-            // Para Rolo 3
+          setTimeout(async () => {
+            // Para Rolo 3 (Fim da animação)
             setAnimatingReels([false, false, false]);
             setDisplayReels([data.reels[0], data.reels[1], data.reels[2]]);
             
-            // Define o resultado final e dispara os efeitos visuais
             setResult(data);
-            refresh();
+            setSpinning(false);
+
+            // 💰 Adiciona os pontos totais devolvidos pelo servidor (com o prémio incluído)
+            updatePoints(data.points);
+            await refresh();
             
             if (data.winPoints > 0) {
               toast.success(`🎰 ${data.multiplier}x! +${formatPoints(data.winPoints)}`);
             } else {
               toast.error('Tenta de novo!');
             }
-            setSpinning(false);
           }, 450);
         }, 450);
       }, 1000);
@@ -2122,6 +2130,8 @@ export function SlotsGame() {
       clearInterval(interval);
       setSpinning(false);
       setAnimatingReels([false, false, false]);
+      // Se a API falhar, devolvemos os pontos deduzidos ao saldo do utilizador
+      await refresh();
       toast.error(err.response?.data?.error || err.message);
     }
   };
@@ -2130,7 +2140,6 @@ export function SlotsGame() {
     <div className="max-w-md mx-auto space-y-4">
       <Card className="bg-[#0f141c] border border-slate-800 text-white overflow-hidden p-5">
         
-        {/* Cabeçalho Neon */}
         <div className="flex justify-between items-center mb-5">
           <div className="flex items-center gap-2">
             <Coins className="text-orange animate-pulse" size={18} />
@@ -2147,7 +2156,6 @@ export function SlotsGame() {
           )}
         </div>
 
-        {/* Chassis da Máquina de Slots */}
         <div 
           className={`bg-[#0a0d14] border-2 rounded-2xl p-5 mb-5 relative transition-all duration-300 ${
             spinning 
@@ -2157,7 +2165,6 @@ export function SlotsGame() {
                 : 'border-slate-800 shadow-inner'
           }`}
         >
-          {/* Luzes Laterais Decorativas de Casino */}
           <div className="absolute inset-y-4 left-2 w-1 flex flex-col justify-between opacity-40">
             {[...Array(4)].map((_, i) => (
               <div key={i} className={`w-1 h-1 rounded-full ${spinning ? 'bg-amber-400 animate-ping' : 'bg-slate-600'}`} />
@@ -2169,7 +2176,6 @@ export function SlotsGame() {
             ))}
           </div>
 
-          {/* Compartimento dos Rolos (Reels Container) */}
           <div className="flex gap-3.5 justify-center items-center px-2">
             {displayReels.map((reel, i) => {
               const isAnim = animatingReels[i];
@@ -2179,7 +2185,6 @@ export function SlotsGame() {
                   className="w-24 h-24 bg-[#141a26] border border-slate-800 rounded-xl flex items-center justify-center overflow-hidden relative"
                   style={{ boxShadow: 'inset 0 4px 12px rgba(0,0,0,0.6)' }}
                 >
-                  {/* Linha guia de mira de fundo */}
                   <div className="absolute inset-x-0 h-px bg-slate-800/50 top-1/2 -translate-y-1/2 pointer-events-none" />
                   
                   <AnimatePresence mode="wait">
@@ -2189,10 +2194,10 @@ export function SlotsGame() {
                       initial={isAnim ? {} : { scale: 0.4, y: -20, opacity: 0 }}
                       animate={isAnim ? {
                         y: [-12, 12],
-                        filter: 'blur(3px)', // Motion Blur perfeito em CSS
+                        filter: 'blur(3px)', 
                         scale: 0.95
                       } : { 
-                        scale: [1.2, 1], // Pequeno bounce elástico ao parar
+                        scale: [1.2, 1], 
                         y: 0, 
                         opacity: 1,
                         filter: 'blur(0px)'
@@ -2216,7 +2221,6 @@ export function SlotsGame() {
             })}
           </div>
 
-          {/* Linha Guia Central Transparente */}
           <div className="mt-4 flex items-center gap-2 justify-center opacity-70">
             <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent to-orange/40" />
             <span className="text-orange text-[9px] font-black tracking-widest uppercase">Payline</span>
@@ -2224,7 +2228,6 @@ export function SlotsGame() {
           </div>
         </div>
 
-        {/* Banner de Estado ou Feedback de Ganhos */}
         <div className="h-10 flex items-center justify-center mb-4">
           {result && !spinning ? (
             <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}>
@@ -2243,7 +2246,6 @@ export function SlotsGame() {
           )}
         </div>
 
-        {/* Tabela de Símbolos / Multiplicadores Estilizada */}
         <div className="grid grid-cols-4 gap-1.5 mb-5 text-center">
           {[
             { s: '🍒', n: 'Cherry', m: '2x', id: 'cherry' },
@@ -2257,7 +2259,7 @@ export function SlotsGame() {
           ].map(sym => (
             <div 
               key={sym.id} 
-              className="bg-[#141a26] border border-slate-900 rounded-xl p-1.5 flex flex-col items-center justify-center transition-colors hover:border-slate-800"
+              className="bg-[#141a26] border border-slate-900 rounded-xl p-1.5 flex flex-col items-center justify-center"
             >
               <span className="text-xl mb-0.5 filter drop-shadow-[0_1px_3px_rgba(0,0,0,0.3)] select-none">{sym.s}</span>
               <span className="text-[10px] font-black tracking-tight" style={{ color: SYMBOL_COLORS[sym.id] }}>
@@ -2267,7 +2269,6 @@ export function SlotsGame() {
           ))}
         </div>
 
-        {/* Painel de Controlo Inferior */}
         <div className="flex gap-2 mb-4 bg-[#0a0d14] p-1.5 rounded-xl border border-slate-900 items-center">
           <input 
             type="number" 
@@ -2291,13 +2292,12 @@ export function SlotsGame() {
           </div>
         </div>
 
-        {/* Botão de Ação */}
         <Button 
           onClick={spin} 
           loading={spinning} 
           className="w-full py-4 text-sm font-black uppercase tracking-widest shadow-lg active:scale-[0.99] transition-transform"
         >
-          🎰 {spinning ? 'A Rodar...' : `Girar Rolos — ${formatPoints(bet)}`}
+          {spinning ? '🎰 A Rodar...' : `🎰 Girar Rolos — ${formatPoints(bet)}`}
         </Button>
       </Card>
     </div>
