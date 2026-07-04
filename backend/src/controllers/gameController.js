@@ -2,7 +2,7 @@ const UserModel   = require('../models/userModel');
 const GameModel   = require('../models/gameModel');
 const { InventoryModel } = require('../models/index');
 const { asyncHandler, createError } = require('../middleware/errorHandler');
-const { pool } = require('../config/database'); // Importado para gerir as transações
+const { pool } = require('../config/database'); 
 const {
   generateMinePositions, calcMinesMultiplier,
   generateCrashPoint, rollCaseItem,
@@ -30,6 +30,7 @@ const minesStart = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { betPoints, mineCount = 3 } = req.body;
   if (mineCount < 1 || mineCount > 24) throw createError('Minas inválidas (1-24)', 400);
+  if (!betPoints || betPoints < 1) throw createError('Aposta mínima de 1 ponto', 400);
 
   const conn = await pool.getConnection();
   try {
@@ -38,7 +39,7 @@ const minesStart = asyncHandler(async (req, res) => {
     const user = await getUser(userId, conn);
     if (user.points < betPoints) throw createError('Pontos insuficientes', 400);
 
-    // Debitar imediatamente
+    // Debitar imediatamente ao carregar no botão
     await UserModel.adjustPoints(userId, -betPoints, conn);
     await GameModel.createTransaction({
       userId, type: 'bet', amount: -betPoints,
@@ -50,8 +51,9 @@ const minesStart = asyncHandler(async (req, res) => {
     const positions = generateMinePositions(25, mineCount);
     const sessionId = await GameModel.createMinesSession({ userId, betAmount: betPoints, minePositions: positions }, conn);
 
+    const finalUser = await getUser(userId, conn);
     await conn.commit();
-    res.json({ sessionId });
+    res.json({ sessionId, points: finalUser.points }); // 🛠️ Retorna o saldo deduzido para a UI atualizar na hora
   } catch (err) {
     await conn.rollback();
     throw err;
@@ -74,15 +76,18 @@ const minesReveal = asyncHandler(async (req, res) => {
     const { minePositions, revealed, totalCells } = session.meta;
     if (revealed.includes(cellIndex)) throw createError('Célula já revelada', 400);
 
+    // Bateu numa mina (Perdeu tudo)
     if (minePositions.includes(cellIndex)) {
       await GameModel.closeMinesSession(sessionId, 'lost', conn);
       await GameModel.createMatch({ userId, gameType: 'mines', betAmount: session.bet_amount, winAmount: 0, multiplier: 0, result: 'loss' }, conn);
       await UserModel.incrementLosses(userId, conn);
 
+      const finalUser = await getUser(userId, conn);
       await conn.commit();
-      return res.json({ hit: true, minePositions });
+      return res.json({ hit: true, minePositions, points: finalUser.points }); // 🛠️ Retorna saldo atualizado
     }
 
+    // Célula Segura
     const newRevealed = [...revealed, cellIndex];
     await GameModel.updateMinesSession(sessionId, newRevealed, conn);
     await UserModel.addXP(userId, XP_REWARDS.mines_safe, conn);
@@ -90,8 +95,9 @@ const minesReveal = asyncHandler(async (req, res) => {
     const multiplier = calcMinesMultiplier(newRevealed.length, totalCells, minePositions.length);
     const potentialWin = Math.round(session.bet_amount * multiplier);
 
+    const finalUser = await getUser(userId, conn);
     await conn.commit();
-    res.json({ hit: false, multiplier, potentialWin, revealed: newRevealed });
+    res.json({ hit: false, multiplier, potentialWin, revealed: newRevealed, points: finalUser.points });
   } catch (err) {
     await conn.rollback();
     throw err;
@@ -115,11 +121,11 @@ const minesCashout = asyncHandler(async (req, res) => {
     if (!revealed.length) throw createError('Revela pelo menos uma célula', 400);
 
     const multiplier = calcMinesMultiplier(revealed.length, totalCells, minePositions.length);
-    const winPoints  = Math.round(session.bet_amount * multiplier);
+    const winPoints   = Math.round(session.bet_amount * multiplier);
 
     await GameModel.closeMinesSession(sessionId, 'cashed_out', conn);
     
-    // Creditar o prémio total
+    // Creditar o prémio total acumulado
     const userBefore = await getUser(userId, conn);
     await UserModel.adjustPoints(userId, winPoints, conn);
     await GameModel.createTransaction({
@@ -149,6 +155,7 @@ const coinflip = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { betPoints, choice } = req.body;
   if (!['heads', 'tails'].includes(choice)) throw createError('Escolha inválida', 400);
+  if (!betPoints || betPoints < 1) throw createError('Aposta inválida', 400);
 
   const conn = await pool.getConnection();
   try {
@@ -157,7 +164,7 @@ const coinflip = asyncHandler(async (req, res) => {
     let user = await getUser(userId, conn);
     if (user.points < betPoints) throw createError('Pontos insuficientes', 400);
 
-    // 1. Debitar imediatamente
+    // 1. Debitar imediatamente ao clicar no botão
     await UserModel.adjustPoints(userId, -betPoints, conn);
     await GameModel.createTransaction({
       userId, type: 'bet', amount: -betPoints,
@@ -172,7 +179,7 @@ const coinflip = asyncHandler(async (req, res) => {
 
     if (won) {
       winPoints = Math.round(betPoints * 1.94);
-      // 2. Creditar prémio total
+      // 2. Se ganhar, ganha tudo (Aposta devolvida + Lucro líquido já calculados no multiplicador)
       const current = await getUser(userId, conn);
       await UserModel.adjustPoints(userId, winPoints, conn);
       await GameModel.createTransaction({
@@ -205,6 +212,7 @@ const coinflip = asyncHandler(async (req, res) => {
 const crashJoin = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { betPoints } = req.body;
+  if (!betPoints || betPoints < 1) throw createError('Aposta inválida', 400);
 
   const conn = await pool.getConnection();
   try {
@@ -213,6 +221,7 @@ const crashJoin = asyncHandler(async (req, res) => {
     const user = await getUser(userId, conn);
     if (user.points < betPoints) throw createError('Pontos insuficientes', 400);
 
+    // Perde logo os pontos ao entrar na ronda
     await UserModel.adjustPoints(userId, -betPoints, conn);
     await GameModel.createTransaction({
       userId, type: 'bet', amount: -betPoints,
@@ -222,8 +231,10 @@ const crashJoin = asyncHandler(async (req, res) => {
     }, conn);
 
     const crashPoint = generateCrashPoint();
+    
+    const finalUser = await getUser(userId, conn);
     await conn.commit();
-    res.json({ crashPoint, betPoints });
+    res.json({ crashPoint, betPoints, points: finalUser.points }); // 🛠️ Envia saldo atualizado para o front tirar os pontos do ecrã
   } catch (err) {
     await conn.rollback();
     throw err;
@@ -242,6 +253,8 @@ const crashCashout = asyncHandler(async (req, res) => {
     await conn.beginTransaction();
 
     const winPoints = Math.round(betPoints * multiplier);
+    
+    // 🛠️ CORRIGIDO: Lendo de dentro da transação ativa para evitar quebra de histórico
     const userBefore = await getUser(userId, conn);
 
     await UserModel.adjustPoints(userId, winPoints, conn);
@@ -271,6 +284,7 @@ const crashCashout = asyncHandler(async (req, res) => {
 const blackjackDeal = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { betPoints } = req.body;
+  if (!betPoints || betPoints < 1) throw createError('Aposta inválida', 400);
 
   const conn = await pool.getConnection();
   try {
@@ -279,6 +293,7 @@ const blackjackDeal = asyncHandler(async (req, res) => {
     const user = await getUser(userId, conn);
     if (user.points < betPoints) throw createError('Pontos insuficientes', 400);
 
+    // Deduz imediatamente ao dar as cartas
     await UserModel.adjustPoints(userId, -betPoints, conn);
     await GameModel.createTransaction({
       userId, type: 'bet', amount: -betPoints,
@@ -336,6 +351,7 @@ const blackjackAction = asyncHandler(async (req, res) => {
         const user = await getUser(userId, conn);
         if (user.points < betPoints) throw createError('Pontos insuficientes para Double', 400);
 
+        // Deduz a aposta extra do Double na hora
         await UserModel.adjustPoints(userId, -betPoints, conn);
         await GameModel.createTransaction({
           userId, type: 'bet', amount: -betPoints,
@@ -403,6 +419,7 @@ const caseOpen = asyncHandler(async (req, res) => {
     const user = await getUser(userId, conn);
     if (user.points < caseData.price) throw createError('Pontos insuficientes', 400);
 
+    // Deduz o preço da caixa na hora
     await UserModel.adjustPoints(userId, -caseData.price, conn);
     await GameModel.createTransaction({
       userId, type: 'bet', amount: -caseData.price,
@@ -419,6 +436,7 @@ const caseOpen = asyncHandler(async (req, res) => {
 
     await InventoryModel.add(userId, won.id, conn);
     
+    // Se a skin valer pontos diretos, adiciona tudo de volta ao saldo
     if (pointsWon > 0) {
       const current = await getUser(userId, conn);
       await UserModel.adjustPoints(userId, pointsWon, conn);
@@ -473,6 +491,7 @@ const roulette = asyncHandler(async (req, res) => {
     const user = await getUser(userId, conn);
     if (user.points < totalStake) throw createError('Pontos insuficientes', 400);
 
+    // Deduz o custo total da mesa na hora
     await UserModel.adjustPoints(userId, -totalStake, conn);
     await GameModel.createTransaction({
       userId, type: 'bet', amount: -totalStake,
@@ -492,6 +511,7 @@ const roulette = asyncHandler(async (req, res) => {
       return { ...bet, won: multiplier > 0, multiplier, winAmount };
     });
 
+    // Se houver prémios nas linhas, adiciona o total ao saldo final
     if (totalWon > 0) {
       const current = await getUser(userId, conn);
       await UserModel.adjustPoints(userId, totalWon, conn);
@@ -532,6 +552,7 @@ const dice = asyncHandler(async (req, res) => {
   const { betPoints, target, direction } = req.body;
   if (!['over', 'under'].includes(direction)) throw createError('Direção inválida (over/under)', 400);
   if (target < 2 || target > 98) throw createError('Target deve estar entre 2 e 98', 400);
+  if (!betPoints || betPoints < 1) throw createError('Aposta inválida', 400);
 
   const conn = await pool.getConnection();
   try {
@@ -540,6 +561,7 @@ const dice = asyncHandler(async (req, res) => {
     const user = await getUser(userId, conn);
     if (user.points < betPoints) throw createError('Pontos insuficientes', 400);
 
+    // Deduz na hora ao rolar
     await UserModel.adjustPoints(userId, -betPoints, conn);
     await GameModel.createTransaction({
       userId, type: 'bet', amount: -betPoints,
@@ -588,16 +610,16 @@ const plinko = asyncHandler(async (req, res) => {
   const { betPoints, rows = 16 } = req.body;
   const validRows = [8, 12, 16];
   if (!validRows.includes(Number(rows))) throw createError('Linhas inválidas (8, 12 ou 16)', 400);
+  if (!betPoints || betPoints < 1) throw createError('Aposta inválida', 400);
 
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
 
-    // 1. Obter saldo atualizado bloqueando a linha para concorrência
     const user = await getUser(userId, conn);
     if (user.points < betPoints) throw createError('Pontos insuficientes', 400);
 
-    // 2. Retirar os pontos imediatamente da conta
+    // Deduz ao largar a bola
     await UserModel.adjustPoints(userId, -betPoints, conn);
     await GameModel.createTransaction({
       userId, type: 'bet', amount: -betPoints,
@@ -606,12 +628,10 @@ const plinko = asyncHandler(async (req, res) => {
       description: `Plinko — ${betPoints} pts`,
     }, conn);
 
-    // 3. Gerar a matemática do prémio total
     const { position, multiplier, path } = dropPlinko(Number(rows));
     const winPoints = Math.round(betPoints * multiplier);
 
     if (winPoints > 0) {
-      // 4. Depositar o prémio total (Ex: Aposta 100, caiu em 2x = Deposita 200)
       const current = await getUser(userId, conn);
       await UserModel.adjustPoints(userId, winPoints, conn);
       await GameModel.createTransaction({
@@ -635,14 +655,14 @@ const plinko = asyncHandler(async (req, res) => {
     }, conn);
 
     const finalUser = await getUser(userId, conn);
-    await conn.commit(); // Fecha e consolida todas as alterações atómicamente
+    await conn.commit(); 
 
     res.json({ position, multiplier, path, winPoints, points: finalUser.points });
   } catch (err) {
-    await conn.rollback(); // Cancela o débito se algo falhar a meio do processo
+    await conn.rollback(); 
     throw err;
   } finally {
-    conn.release(); // Liberta a thread de volta para o pool
+    conn.release(); 
   }
 });
 
@@ -650,6 +670,7 @@ const plinko = asyncHandler(async (req, res) => {
 const pokerDeal = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { betPoints } = req.body;
+  if (!betPoints || betPoints < 1) throw createError('Aposta inválida', 400);
 
   const conn = await pool.getConnection();
   try {
@@ -658,6 +679,7 @@ const pokerDeal = asyncHandler(async (req, res) => {
     const user = await getUser(userId, conn);
     if (user.points < betPoints) throw createError('Pontos insuficientes', 400);
 
+    // Deduz as moedas no Deal inicial
     await UserModel.adjustPoints(userId, -betPoints, conn);
     await GameModel.createTransaction({
       userId, type: 'bet', amount: -betPoints,
@@ -670,8 +692,9 @@ const pokerDeal = asyncHandler(async (req, res) => {
     const hand = deck.slice(0, 5);
     const rest = deck.slice(5);
 
+    const finalUser = await getUser(userId, conn);
     await conn.commit();
-    res.json({ hand, deck: rest, betPoints });
+    res.json({ hand, deck: rest, betPoints, points: finalUser.points });
   } catch (err) {
     await conn.rollback();
     throw err;
@@ -725,6 +748,7 @@ const pokerHold = asyncHandler(async (req, res) => {
 const slots = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { betPoints } = req.body;
+  if (!betPoints || betPoints < 1) throw createError('Aposta inválida', 400);
 
   const conn = await pool.getConnection();
   try {
@@ -733,6 +757,7 @@ const slots = asyncHandler(async (req, res) => {
     const user = await getUser(userId, conn);
     if (user.points < betPoints) throw createError('Pontos insuficientes', 400);
 
+    // Deduz os pontos no spin imediato
     await UserModel.adjustPoints(userId, -betPoints, conn);
     await GameModel.createTransaction({
       userId, type: 'bet', amount: -betPoints,

@@ -54,7 +54,18 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
-  // Atualiza pontos/xp/etc. a partir do backend (chamado depois de cada jogo)
+  // 🛠️ ADICIONADO: Mutação direta e instantânea de pontos sem requisições HTTP adicionais
+  const updatePoints = useCallback((newPoints) => {
+    if (newPoints === undefined || newPoints === null) return;
+    setUser(prev => {
+      if (!prev) return null;
+      const updatedUser = { ...prev, points: Number(newPoints) };
+      localStorage.setItem('nc_user', JSON.stringify(updatedUser));
+      return updatedUser;
+    });
+  }, []);
+
+  // Atualiza pontos/xp/etc. a partir do backend
   const refresh = useCallback(async () => {
     try {
       const { data } = await api.get('/games/state');
@@ -66,13 +77,12 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthCtx.Provider value={{ user, history, loading, login, register, logout, refresh }}>
+    // 🛠️ Incluído o updatePoints no Provider para os componentes dos jogos usarem
+    <AuthCtx.Provider value={{ user, history, loading, login, register, logout, refresh, updatePoints }}>
       {children}
     </AuthCtx.Provider>
   );
 }
 
-// Mantemos o nome "useGame" por compatibilidade com todo o código já
-// existente (jogos, apostas, perfil, etc.) que já usa este hook.
 export const useGame = () => useContext(AuthCtx);
 export const useAuth = () => useContext(AuthCtx);

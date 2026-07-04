@@ -54,10 +54,13 @@ const UserModel = {
     const values = Object.entries(fields)
       .filter(([k]) => allowed.includes(k))
       .map(([, v]) => v);
+      
     if (!updates.length) return;
+    
+    // 🛠️ CORREÇÃO: Passar o array de valores linear combinando os campos com o ID no fim
     await pool.query(
       `UPDATE users SET ${updates.join(', ')}, updated_at = NOW() WHERE id = ?`,
-      ...[values, id]
+      [...values, id] // Em vez de ...[values, id]
     );
   },
 

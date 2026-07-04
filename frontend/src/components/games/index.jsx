@@ -9,7 +9,8 @@ import { Plane, Rocket, DollarSign, Shield, Zap, ArrowDown, ArrowUp, Coins, Trop
 
 // ── MINES ────────────────────────────────────────────────────────────────────
 export function MinesGame() {
-  const { refresh } = useGame();
+  // 🛠️ ADICIONADO: updatePoints injetado
+  const { refresh, updatePoints } = useGame();
   const [bet, setBet]   = useState(50);
   const [mines, setMines] = useState(3);
   const [sessionId, setSessionId] = useState(null);
@@ -22,6 +23,10 @@ export function MinesGame() {
   const startGame = async () => {
     try {
       const { data } = await api.post('/games/mines/start', { betPoints: bet, mineCount: mines });
+      
+      // 🔥 ATUALIZAÇÃO: Deduz o saldo instantaneamente na UI
+      updatePoints(data.points);
+
       setSessionId(data.sessionId);
       setRevealed([]);
       setMinePositions([]);
@@ -39,12 +44,18 @@ export function MinesGame() {
         setMinePositions(data.minePositions);
         setStatus('lost');
         toast.error('💥 Mina encontrada!');
+        
+        // 🔥 ATUALIZAÇÃO: Garante o saldo correto de derrota sincronizado
+        updatePoints(data.points);
         refresh();
       } else {
         setRevealed(data.revealed);
         setMultiplier(data.multiplier);
         setPotentialWin(data.potentialWin);
         toast.success(`💎 +${data.multiplier}x`, { duration: 1000 });
+        
+        // 🔥 ATUALIZAÇÃO: Atualiza se houver ganhos parciais/segurança
+        updatePoints(data.points);
       }
     } catch (err) { toast.error(err.response?.data?.error || err.message); }
   };
@@ -55,6 +66,9 @@ export function MinesGame() {
       const { data } = await api.post('/games/mines/cashout', { sessionId });
       toast.success(`💰 Cashout: ${formatPoints(data.winPoints)} (${data.multiplier}x)!`);
       setStatus('won');
+      
+      // 🔥 ATUALIZAÇÃO: Adiciona o prémio massivo na hora ao saldo visível
+      updatePoints(data.points);
       refresh();
     } catch (err) { toast.error(err.response?.data?.error || err.message); }
   };
@@ -130,13 +144,13 @@ export function MinesGame() {
 
 // ── COINFLIP ─────────────────────────────────────────────────────────────────
 export function CoinflipGame() {
-  const { refresh } = useGame();
+  // 🛠️ ADICIONADO: updatePoints injetado
+  const { refresh, updatePoints } = useGame();
   const [bet, setBet] = useState(50);
   const [choice, setChoice] = useState(null);
   const [flipping, setFlipping] = useState(false);
   const [result, setResult] = useState(null);
   
-  // Estado para controlar visualmente qual face está virada para o utilizador durante e após o giro
   const [visualFace, setVisualFace] = useState('heads'); 
 
   const flip = async () => {
@@ -145,7 +159,6 @@ export function CoinflipGame() {
     setFlipping(true);
     setResult(null);
 
-    // 1. Inicia um efeito alternado rápido enquanto a API responde para simular a rotação rápida das faces
     const faceInterval = setInterval(() => {
       setVisualFace(prev => (prev === 'heads' ? 'tails' : 'heads'));
     }, 150);
@@ -153,20 +166,19 @@ export function CoinflipGame() {
     try {
       const { data } = await api.post('/games/coinflip', { betPoints: bet, choice });
       
-      // Para o ciclo rápido assim que temos a resposta real do servidor
       clearInterval(faceInterval);
-
-      // 2. Sincroniza imediatamente o lado visual final com a resposta exata do backend
       setVisualFace(data.result);
 
-      // 3. Aguarda o término da animação do Framer Motion antes de exibir os painéis de sucesso/erro
+      // 🔥 ATUALIZAÇÃO IMEDIATA: Aplica o saldo enviado pelo backend na hora (ganho ou perda)
+      updatePoints(data.points);
+
       setTimeout(() => {
         setResult(data);
         setFlipping(false);
         refresh();
         if (data.won) toast.success(`🎉 Ganhastes! +${formatPoints(data.winPoints)}`);
         else toast.error(`😢 Perdeste ${formatPoints(bet)}`);
-      }, 900); // Sincronizado com os 0.9s da transição visual
+      }, 900);
 
     } catch (err) {
       clearInterval(faceInterval);
@@ -178,28 +190,23 @@ export function CoinflipGame() {
   return (
     <div className="max-w-md mx-auto">
       <Card className="text-center">
-        
-        {/* Container Animado da Moeda */}
         <motion.div
           animate={flipping ? { 
             rotateY: [0, 180, 360, 540, 720],
-            scale: [1, 1.15, 1.2, 1.05, 1] // Dá um efeito 3D de saltar em direção ao ecrã
+            scale: [1, 1.15, 1.2, 1.05, 1]
           } : {}}
           transition={{ duration: 0.9, ease: 'easeInOut' }}
           className="w-32 h-32 rounded-full mx-auto mb-6 flex items-center justify-center text-5xl border-4 select-none shadow-lg"
           style={{
-            // O fundo adapta-se em tempo real com base no estado visual interno da moeda
             background: visualFace === 'heads' 
               ? 'linear-gradient(135deg, #d4af37, #f5d563)' 
               : 'linear-gradient(135deg, #6b7280, #9ca3af)',
             borderColor: visualFace === 'heads' ? '#d4af37' : '#6b7280',
           }}
         >
-          {/* Mostra dinamicamente a Coroa ou a Cara mesmo enquanto gira */}
           {visualFace === 'heads' ? '👑' : '🦅'}
         </motion.div>
 
-        {/* Seleção de Lado */}
         <div className="flex gap-3 justify-center mb-5">
           {[
             { id: 'heads', icon: '👑', label: 'Cara' },
@@ -220,7 +227,6 @@ export function CoinflipGame() {
           ))}
         </div>
 
-        {/* Input de Valor */}
         <Input 
           label="💎 Aposta (pts)" 
           type="number" 
@@ -231,7 +237,6 @@ export function CoinflipGame() {
           disabled={flipping} 
         />
         
-        {/* Botão de Ação */}
         <Button 
           onClick={flip} 
           loading={flipping} 
@@ -241,7 +246,6 @@ export function CoinflipGame() {
           🎯 Lançar Moeda
         </Button>
 
-        {/* Mensagem de Feedback de Resultado */}
         <AnimatePresence>
           {result && (
             <motion.div
@@ -265,7 +269,8 @@ export function CoinflipGame() {
 
 // ── CRASH ─────────────────────────────────────────────────────────────────────
 export function CrashGame() {
-  const { refresh } = useGame();
+  // 🛠️ ADICIONADO: updatePoints injetado
+  const { refresh, updatePoints } = useGame();
   const [bet, setBet]       = useState(50);
   const [multiplier, setMultiplier] = useState(1.00);
   const [crashPoint, setCrashPoint] = useState(null);
@@ -276,10 +281,8 @@ export function CrashGame() {
   const [history, setHistory]   = useState([1.23, 3.45, 1.01, 8.92, 2.11, 1.54, 26.06, 3.77]);
   const intervalRef = useRef(null);
   const canvasRef   = useRef(null);
-  const frameRef    = useRef(null);
-  const progressRef = useRef(0); // 0→1 de quanto a curva já cresceu
+  const progressRef = useRef(0);
 
-  // Desenha a curva + avião no canvas
   const draw = (progress, didCrash, didCashout) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -287,14 +290,12 @@ export function CrashGame() {
     const W = canvas.width, H = canvas.height;
     ctx.clearRect(0, 0, W, H);
 
-    // Fundo gradiente
     const bg = ctx.createLinearGradient(0, 0, 0, H);
     bg.addColorStop(0, '#0a0615');
     bg.addColorStop(1, '#120a1e');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
 
-    // Estrelas
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
     for (let i = 0; i < 60; i++) {
       const sx = ((i * 137 + 11) % W);
@@ -302,16 +303,14 @@ export function CrashGame() {
       ctx.fillRect(sx, sy, i % 3 === 0 ? 1.5 : 0.8, i % 3 === 0 ? 1.5 : 0.8);
     }
 
-    // Curva de Bézier da trajetória
     const p = Math.min(progress, 1);
     const startX = 60, startY = H - 40;
     const endX = startX + (W - 80) * p;
-    const endY = startY - (H - 80) * Math.pow(p, 0.7); // curva exponencial
+    const endY = startY - (H - 80) * Math.pow(p, 0.7);
 
     const cpX = startX + (endX - startX) * 0.3;
     const cpY = startY;
 
-    // Brilho sob a curva
     const grad = ctx.createLinearGradient(startX, startY, endX, endY);
     grad.addColorStop(0, 'rgba(245,158,11,0)');
     grad.addColorStop(1, didCrash ? 'rgba(239,68,68,0.25)' : didCashout ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.2)');
@@ -323,7 +322,6 @@ export function CrashGame() {
     ctx.fillStyle = grad;
     ctx.fill();
 
-    // Linha da curva
     const lineColor = didCrash ? '#ef4444' : didCashout ? '#10b981' : '#f59e0b';
     ctx.beginPath();
     ctx.moveTo(startX, startY);
@@ -335,7 +333,6 @@ export function CrashGame() {
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Avião/foguete na ponta da curva
     if (!didCrash) {
       const angle = Math.atan2(startY - endY, endX - startX);
       ctx.save();
@@ -343,9 +340,7 @@ export function CrashGame() {
       ctx.rotate(-angle);
       ctx.font = '28px serif';
       ctx.fillText('✈️', -14, 10);
-      // Rastro
       ctx.restore();
-      // Rastro de fogo
       for (let t = 0; t < 6; t++) {
         const tp = Math.max(0, p - t * 0.015);
         const tx2 = startX + (W - 80) * tp;
@@ -357,12 +352,10 @@ export function CrashGame() {
         ctx.fill();
       }
     } else {
-      // Explosão
       ctx.font = '32px serif';
       ctx.fillText('💥', endX - 16, endY + 10);
     }
 
-    // Eixo Y (linha de base)
     ctx.beginPath();
     ctx.moveTo(startX, 20);
     ctx.lineTo(startX, startY);
@@ -375,6 +368,10 @@ export function CrashGame() {
   const startRound = async () => {
     try {
       const { data } = await api.post('/games/crash/join', { betPoints: bet });
+      
+      // 🔥 ATUALIZAÇÃO: Retira o dinheiro da carteira ao entrar no avião
+      updatePoints(data.points);
+
       setBetIn(true);
       setCrashPoint(data.crashPoint);
       setCrashed(false);
@@ -387,7 +384,6 @@ export function CrashGame() {
       const animate = () => {
         current = parseFloat((current * 1.015).toFixed(2));
         setMultiplier(current);
-        // Progresso: satura em 0.95 para o avião nunca sair do ecrã
         progressRef.current = Math.min(0.95, 1 - 1 / Math.pow(current, 0.4));
         draw(progressRef.current, false, false);
 
@@ -398,8 +394,11 @@ export function CrashGame() {
           setBetIn(false);
           setHistory(h => [parseFloat(current.toFixed(2)), ...h.slice(0, 9)]);
           toast.error(`💥 Crash em ${current.toFixed(2)}x!`);
+          
+          // 🔥 ATUALIZAÇÃO: Re-sincroniza saldo final se necessário no crash
+          updatePoints(data.points);
           refresh();
-          return; // para o loop
+          return;
         }
         intervalRef.current = setTimeout(animate, 100);
       };
@@ -414,6 +413,10 @@ export function CrashGame() {
     clearTimeout(intervalRef.current);
     try {
       const { data } = await api.post('/games/crash/cashout', { betPoints: bet, multiplier, crashPoint });
+      
+      // 🔥 ATUALIZAÇÃO: Deposita o lucro do multiplicador no cabeçalho
+      updatePoints(data.points);
+
       setCashedOut(true);
       setBetIn(false);
       setRunning(false);
@@ -434,7 +437,6 @@ export function CrashGame() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      {/* Histórico de crashes */}
       <div className="flex gap-1.5 flex-wrap mb-3">
         {history.map((h, i) => (
           <span key={i}
@@ -449,11 +451,9 @@ export function CrashGame() {
         ))}
       </div>
 
-      {/* Canvas principal */}
       <div className="relative rounded-card2 overflow-hidden mb-3 border border-border">
         <canvas ref={canvasRef} width={700} height={340} className="w-full" style={{ display: 'block' }} />
 
-        {/* Multiplicador sobreposto */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center">
             <motion.div
@@ -476,7 +476,6 @@ export function CrashGame() {
         </div>
       </div>
 
-      {/* Controlos */}
       <Card>
         <div className="flex gap-3 items-end">
           <div className="flex-1">
@@ -526,7 +525,8 @@ function PlayingCard({ card, faceDown }) {
 }
 
 export function BlackjackGame() {
-  const { refresh } = useGame();
+  // 🛠️ ADICIONADO: updatePoints injetado
+  const { refresh, updatePoints } = useGame();
   const [bet, setBet]   = useState(50);
   const [phase, setPhase] = useState('bet'); // bet | play | done
   const [playerHand, setPlayerHand] = useState([]);
@@ -534,19 +534,23 @@ export function BlackjackGame() {
   const [deck, setDeck] = useState([]);
   const [result, setResult] = useState(null);
   const [winPoints, setWinPoints] = useState(0);
-  const [gameMessage, setGameMessage] = useState(null); // Estado para mensagens embutidas
+  const [gameMessage, setGameMessage] = useState(null);
 
   const deal = async () => {
     setGameMessage(null);
     try {
       const { data } = await api.post('/games/blackjack/deal', { betPoints: bet });
+      
+      // 🔥 ATUALIZAÇÃO: Remove o valor da aposta de imediato na UI
+      updatePoints(data.points);
+
       setPlayerHand(data.playerHand);
       setDealerHand(data.dealerHand);
       setDeck(data.deck);
       setPhase(data.isBlackjack ? 'done' : 'play');
       setResult(data.isBlackjack ? 'blackjack' : null);
       
-      refresh(); // Sincroniza a dedução imediata da aposta na carteira
+      refresh();
 
       if (data.isBlackjack) {
         setGameMessage({
@@ -567,6 +571,10 @@ export function BlackjackGame() {
       const { data } = await api.post('/games/blackjack/action', {
         action: act, playerHand, dealerHand, deck, betPoints: bet,
       });
+      
+      // 🔥 ATUALIZAÇÃO: Sincroniza o saldo após a ação (especialmente Double ou ganho final)
+      updatePoints(data.points);
+
       setPlayerHand(data.playerHand);
       setDealerHand(data.dealerHand);
       setDeck(data.deck);
@@ -575,7 +583,7 @@ export function BlackjackGame() {
         setResult(data.result);
         setWinPoints(data.winPoints);
         setPhase('done');
-        refresh(); // Atualiza a carteira com o prémio real adicionado
+        refresh();
 
         if (data.winPoints > 0) {
           setGameMessage({
@@ -624,7 +632,6 @@ export function BlackjackGame() {
 
   return (
     <div className="max-w-xl mx-auto space-y-4">
-      {/* Table */}
       <div className="rounded-xl p-6 min-h-64 flex flex-col items-center gap-4 border border-slate-800"
         style={{ background: 'radial-gradient(ellipse at center, #1a4731, #0d2b1e)' }}>
         {phase !== 'bet' && (
@@ -670,15 +677,12 @@ export function BlackjackGame() {
             <>
               <Button onClick={() => action('hit')} className="flex-1 font-bold bg-blue-600 hover:bg-blue-700">Hit</Button>
               <Button onClick={() => action('stand')} className="flex-1 font-bold bg-amber-600 hover:bg-amber-700">Stand</Button>
-              {playerHand.length === 2 && (
-                <Button onClick={() => action('double')} className="flex-1 font-bold bg-purple-600 hover:bg-purple-700">Double</Button>
-              )}
+              <Button onClick={() => action('double')} className="flex-1 font-bold bg-purple-600 hover:bg-purple-700">Double</Button>
             </>
           )}
           {phase === 'done' && <Button onClick={reset} className="flex-1 font-bold bg-slate-700 hover:bg-slate-600">🔄 Nova Mão</Button>}
         </div>
 
-        {/* Mensagem Resultante Incorporada abaixo dos controlos */}
         {gameMessage && (
           <div className={`p-3 rounded-xl text-center text-sm font-bold border ${
             gameMessage.type === 'win' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
@@ -695,7 +699,8 @@ export function BlackjackGame() {
 
 // ── CASE OPENING ─────────────────────────────────────────────────────────────
 export function CaseOpeningGame() {
-  const { refresh } = useGame();
+  // 🛠️ ADICIONADO: updatePoints injetado
+  const { refresh, updatePoints } = useGame();
   const [cases, setCases]         = useState([]);
   const [loadingCases, setLoadingCases] = useState(true);
   const [selectedCase, setSelectedCase] = useState(null);
@@ -704,10 +709,9 @@ export function CaseOpeningGame() {
   const [reelOffset, setReelOffset] = useState(0);
   const [reelItems, setReelItems] = useState([]);
   const reelContainerRef = useRef(null);
-  const ITEM_W = 88; // px (80px item + 8px gap)
+  const ITEM_W = 88; 
   const WINNING_INDEX = 45;
 
-  // Carrega a lista de caixas disponíveis (com os seus itens reais) ao montar
   useEffect(() => {
     api.get('/games/cases')
       .then(({ data }) => {
@@ -725,22 +729,18 @@ export function CaseOpeningGame() {
     try {
       const { data } = await api.post('/games/cases/open', { caseId: selectedCase.id });
 
-      // Construir o rolo de animação usando os itens REAIS desta caixa
-      // O item sorteado fica exatamente no índice WINNING_INDEX (45),
-      // que é o índice para o qual o cálculo de "target" abaixo aponta.
+      // 🔥 ATUALIZAÇÃO: Cobra o valor da caixa à UI imediatamente após a abertura do servidor
+      updatePoints(data.points);
+
       const caseItems = selectedCase.items || [];
       const reel = Array(60).fill(null).map(() => caseItems[Math.floor(Math.random() * caseItems.length)]);
       reel[WINNING_INDEX] = data.item;
       setReelItems(reel);
       setReelOffset(0);
 
-      // Largura real do contentor visível (a roleta) — necessária para
-      // centrar o item ganho exatamente debaixo do seletor laranja.
       const containerWidth = reelContainerRef.current?.offsetWidth || 600;
-      const INNER_PADDING = 8; // px — corresponde ao "p-2" do contentor interno do rolo
-      // Posição do centro do item WINNING_INDEX dentro do rolo (já com o padding):
+      const INNER_PADDING = 8; 
       const itemCenter = INNER_PADDING + WINNING_INDEX * ITEM_W + ITEM_W / 2;
-      // Deslocamento necessário para esse centro coincidir com o centro do contentor:
       const target = itemCenter - containerWidth / 2;
 
       let current = 0;
@@ -768,7 +768,6 @@ export function CaseOpeningGame() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      {/* Seleção de caixa */}
       <div className="mb-5">
         <h3 className="font-bold text-sm mb-3 text-text2">📦 Escolhe a tua caixa</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -803,55 +802,24 @@ export function CaseOpeningGame() {
               <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-20 border-2 border-orange rounded-xl z-10 bg-orange/5 pointer-events-none" />
               <div className="absolute top-0 bottom-0 left-0 w-16 bg-gradient-to-r from-bg3 to-transparent z-10 pointer-events-none" />
               <div className="absolute top-0 bottom-0 right-0 w-16 bg-gradient-to-l from-bg3 to-transparent z-10 pointer-events-none" />
-              <div className="flex gap-2 p-2 h-full" style={{ transform: `translateX(-${reelOffset}px)`, transition: 'none' }}>
-                {(reelItems.length > 0 ? reelItems : previewItems).map((item, i) => item && (
-                  <div key={i} className="w-20 flex-shrink-0 h-full rounded-lg flex flex-col items-center justify-center gap-1"
-                    style={{ background: RARITY_BG[item.rarity] || '#374151', border: `2px solid ${(RARITY_COLORS[item.rarity] || '#9ca3af')}44` }}>
-                    <span className="text-2xl">{item.emoji}</span>
-                    <span className="text-[9px] font-bold text-center px-1" style={{ color: RARITY_COLORS[item.rarity] }}>{item.rarity}</span>
+              
+              <div className="absolute top-0 bottom-0 flex items-center gap-2 p-2 transition-all will-change-transform"
+                style={{ transform: `translateX(-${reelOffset}px)` }}>
+                {reelItems.map((item, i) => (
+                  <div key={i} className="w-20 h-20 bg-bg4 border border-border rounded-lg p-2 flex flex-col items-center justify-center relative flex-shrink-0">
+                    <div className="text-2xl mb-1">{item?.emoji || '🎁'}</div>
+                    <div className="text-[10px] font-bold truncate w-full text-center">{item?.name}</div>
+                    <div className="absolute bottom-0 left-0 right-0 h-1 rounded-b-lg" style={{ backgroundColor: RARITY_COLORS[item?.rarity || 'common'] }} />
                   </div>
                 ))}
               </div>
             </div>
-            <Button onClick={openCase} loading={spinning} className="w-full py-3">
-              📦 Abrir {selectedCase.name} — {formatPoints(selectedCase.price)}
+
+            <Button onClick={openCase} disabled={spinning} className="w-full py-3 font-bold">
+              🔑 Abrir Caixa por {formatPoints(selectedCase.price)}
             </Button>
           </Card>
         </>
-      )}
-
-      <AnimatePresence>
-        {result && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-            <Card className="text-center" style={{ border: `2px solid ${(RARITY_COLORS[result.rarity] || '#9ca3af')}55` }}>
-              <div className="text-5xl mb-2">{result.emoji || '🔫'}</div>
-              <div className="font-bold text-lg" style={{ color: RARITY_COLORS[result.rarity] }}>{result.name}</div>
-              <Badge color="gray" className="mt-2">{result.rarity}</Badge>
-              <div className="mt-3 inline-flex items-center gap-1.5 bg-blue/10 text-blue px-3 py-1 rounded-full text-sm font-bold">
-                💎 +{result.points_value} pontos
-              </div>
-              <p className="text-text2 text-xs mt-2">Item visual adicionado ao inventário</p>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Tabela de probabilidades + pontos da caixa selecionada */}
-      {selectedCase?.items?.length > 0 && (
-        <Card className="mt-4">
-          <h3 className="font-bold mb-3 text-sm">📊 Itens desta caixa</h3>
-          {selectedCase.items.map(item => (
-            <div key={item.id} className="flex items-center gap-2 py-1.5 border-b border-border last:border-0">
-              <span className="text-base flex-shrink-0">{item.emoji}</span>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold truncate" style={{ color: RARITY_COLORS[item.rarity] }}>{item.name}</div>
-                <div className="text-[10px] text-text3">{item.rarity}</div>
-              </div>
-              <span className="text-xs text-blue font-semibold">+{item.points_value} pts</span>
-              <span className="text-xs text-text2 w-14 text-right">{parseFloat(item.chance).toFixed(3)}%</span>
-            </div>
-          ))}
-        </Card>
       )}
     </div>
   );
@@ -865,13 +833,12 @@ function numberColor(n) {
 }
 const COLOR_HEX = { red: '#dc2626', black: '#18181b', green: '#16a34a' };
 
-
-// Ordem real dos números na roda física europeia (não é sequencial 0-36!)
+// Ordem real dos números na roda física europeia
 const WHEEL_ORDER = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
 
 export function RouletteGame() {
-  const { refresh } = useGame();
-  // bets = { 'color:red': amount, 'number:17': amount, 'parity:even': amount, 'dozen:1': amount, 'half:low': amount }
+  // 🛠️ ADICIONADO: updatePoints injetado no useGame
+  const { refresh, updatePoints } = useGame();
   const [bets, setBets] = useState({});
   const [betInput, setBetInput] = useState(20);
   const [spinning, setSpinning] = useState(false);
@@ -897,8 +864,6 @@ export function RouletteGame() {
     });
   };
 
-  // Converte o dicionário local de apostas (chave "tipo:valor") no formato
-  // de array que o backend espera.
   function buildBetsPayload() {
     return Object.entries(bets).map(([key, amount]) => {
       const [type, value] = key.split(':');
@@ -914,12 +879,13 @@ export function RouletteGame() {
     try {
       const { data } = await api.post('/games/roulette', { bets: serverBets });
 
+      // 🔥 ATUALIZAÇÃO IMEDIATA: 
+      // Deduz o custo total da mesa e sincroniza na UI no mesmo instante
+      updatePoints(data.points);
+
       const idx = WHEEL_ORDER.indexOf(data.winningNumber);
       const segAngle = 360 / 37;
-      // Para a roda parar com o número vencedor debaixo do marcador (12h),
-      // precisamos que a rotação final seja: 360*N - (idx * segAngle + segAngle/2)
-      // Como usamos acumulação, calculamos quantas voltas completas já demos
-      // e construímos o próximo target absoluto a partir daí.
+      
       setRotation(prev => {
         const fullRotations = Math.ceil(prev / 360) * 360 + 360 * 5;
         return fullRotations - (idx * segAngle + segAngle / 2);
@@ -942,7 +908,6 @@ export function RouletteGame() {
   const numbers = Array.from({ length: 37 }, (_, i) => i);
   const segAngle = 360 / 37;
 
-  // Grelha 3x12 estilo mesa real: linhas de baixo (1,4,7...) para cima (3,6,9...)
   const ROWS = [
     [3,6,9,12,15,18,21,24,27,30,33,36],
     [2,5,8,11,14,17,20,23,26,29,32,35],
@@ -953,12 +918,10 @@ export function RouletteGame() {
     <div className="max-w-6xl mx-auto">
       <div className="grid grid-cols-1 xl:grid-cols-[460px_1fr] gap-5">
 
-        {/* ── COLUNA ESQUERDA: roda + ficha + botão girar ── */}
+        {/* ── COLUNA ESQUERDA: roda ── */}
         <div>
           <Card className="text-center overflow-visible" style={{ background: 'radial-gradient(circle at 50% 30%, #2a1530, #150a18)' }}>
             <div className="relative w-full aspect-square max-w-[400px] mx-auto mb-4 flex items-center justify-center">
-
-              {/* Aro exterior dourado/castanho (bisel) */}
               <div className="absolute inset-0 rounded-full"
                 style={{
                   background: 'conic-gradient(from 0deg, #3d2410, #6b4423, #3d2410, #6b4423, #3d2410)',
@@ -966,7 +929,6 @@ export function RouletteGame() {
                 }}
               />
 
-              {/* Roda giratória com os 37 segmentos na ordem física real */}
               <motion.div
                 className="absolute rounded-full"
                 style={{
@@ -979,7 +941,6 @@ export function RouletteGame() {
                 animate={{ rotate: rotation }}
                 transition={{ duration: 4, ease: [0.15, 0.85, 0.25, 1] }}
               >
-                {/* Números sobre cada segmento */}
                 {WHEEL_ORDER.map((n, i) => (
                   <div key={n} className="absolute inset-0 flex justify-center"
                     style={{ transform: `rotate(${i * segAngle + segAngle / 2}deg)` }}>
@@ -988,13 +949,11 @@ export function RouletteGame() {
                 ))}
               </motion.div>
 
-              {/* Bola — fixa no topo, a roda roda por baixo dela */}
               <div className="absolute" style={{ inset: 0 }}>
                 <div className="absolute left-1/2 -translate-x-1/2 w-3 h-3 rounded-full"
                   style={{ top: '7%', background: 'radial-gradient(circle at 35% 30%, #fff, #ccc)', boxShadow: '0 1px 4px rgba(0,0,0,.6)' }} />
               </div>
 
-              {/* Cubo central dourado */}
               <div className="absolute rounded-full flex items-center justify-center z-10"
                 style={{
                   inset: '38%',
@@ -1018,7 +977,6 @@ export function RouletteGame() {
             )}
           </Card>
 
-          {/* Valor da ficha de aposta */}
           <Card className="mt-4">
             <label className="text-xs font-medium text-text2 block mb-2">💎 Valor por ficha</label>
             <div className="flex items-center gap-2">
@@ -1038,7 +996,6 @@ export function RouletteGame() {
             {spinning ? 'A girar...' : `🎡 Girar — ${formatPoints(totalStake)}`}
           </Button>
 
-          {/* Apostas atuais */}
           {Object.keys(bets).length > 0 && (
             <Card className="mt-4">
               <div className="flex items-center justify-between mb-2">
@@ -1071,13 +1028,12 @@ export function RouletteGame() {
           )}
         </div>
 
-        {/* ── COLUNA DIREITA: mesa de apostas estilo casino real ── */}
+        {/* ── COLUNA DIREITA: grelha ── */}
         <div>
           <Card>
             <h3 className="font-bold text-sm mb-3">🎯 Mesa de Apostas — clica para apostar</h3>
 
             <div className="flex border border-border2 rounded-card overflow-hidden">
-              {/* Coluna do zero */}
               <button disabled={spinning} onClick={() => addBet('number', 0)}
                 className={`relative w-10 flex-shrink-0 flex items-center justify-center text-sm font-bold text-white border-2
                   transition-all ${bets['number:0'] ? 'border-orange' : 'border-transparent hover:brightness-110'}`}
@@ -1086,7 +1042,6 @@ export function RouletteGame() {
                 {bets['number:0'] && <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-orange text-black text-[9px] font-black rounded-full flex items-center justify-center">{bets['number:0']}</span>}
               </button>
 
-              {/* Grelha 3x12 */}
               <div className="flex-1 grid grid-rows-3 gap-px bg-border2">
                 {ROWS.map((row, ri) => (
                   <div key={ri} className="grid grid-cols-12 gap-px">
@@ -1109,7 +1064,6 @@ export function RouletteGame() {
               </div>
             </div>
 
-            {/* Dúzias */}
             <div className="grid grid-cols-3 gap-px bg-border2 mt-px rounded-b-card overflow-hidden">
               {[
                 { label: '1ª 12', value: '1' },
@@ -1129,7 +1083,6 @@ export function RouletteGame() {
               })}
             </div>
 
-            {/* Apostas exteriores: 1-18 / Par / Vermelho / Preto / Ímpar / 19-36 */}
             <div className="grid grid-cols-6 gap-px bg-border2 mt-2 rounded-card overflow-hidden">
               <button disabled={spinning} onClick={() => addBet('half', 'low')}
                 className={`relative py-2.5 text-[11px] font-bold bg-bg4 transition-all disabled:opacity-50
@@ -1170,11 +1123,8 @@ export function RouletteGame() {
                 {bets['half:high'] && <span className="absolute top-1 right-1 w-4 h-4 bg-orange text-black text-[9px] font-black rounded-full flex items-center justify-center">{bets['half:high']}</span>}
               </button>
             </div>
-
-            
           </Card>
 
-          {/* Resultados detalhados da última jogada */}
           {result && !spinning && (
             <Card className="mt-4">
               <h3 className="font-bold text-sm mb-2">📋 Resultado: número {result.winningNumber} ({result.winningColor})</h3>
@@ -1202,14 +1152,15 @@ export function RouletteGame() {
 
 // ── DICE (HiLo) ────────────────────────────────────────────────────────────────
 export function DiceGame() {
-  const { refresh } = useGame();
+  // 🛠️ ADICIONADO: updatePoints injetado
+  const { refresh, updatePoints } = useGame();
   const [bet, setBet] = useState(50);
   const [target, setTarget] = useState(50);
   const [direction, setDirection] = useState('over');
   const [rolling, setRolling] = useState(false);
   const [result, setResult] = useState(null);
   const [displayRoll, setDisplayRoll] = useState(50); 
-  const [gameMessage, setGameMessage] = useState(null); // Novo estado para mensagens embutidas
+  const [gameMessage, setGameMessage] = useState(null);
 
   const chance = direction === 'over' ? (100 - target) : (target - 1);
   const edge = 0.01;
@@ -1228,15 +1179,18 @@ export function DiceGame() {
   const roll = async () => {
     setRolling(true);
     setResult(null);
-    setGameMessage(null); // Limpa mensagens anteriores
+    setGameMessage(null);
     
     try {
       const { data } = await api.post('/games/dice', { betPoints: bet, target, direction });
       
+      // 🔥 ATUALIZAÇÃO IMEDIATA: Deduz o saldo no instante exato da rolagem
+      updatePoints(data.points);
+
       setTimeout(() => {
         setResult(data);
         setDisplayRoll(data.roll);
-        refresh(); // Atualiza a carteira que já deduziu a aposta e aplicou o prémio no backend
+        refresh();
         
         if (data.won) {
           setGameMessage({
@@ -1264,8 +1218,6 @@ export function DiceGame() {
   return (
     <div className="max-w-xl mx-auto space-y-4">
       <Card className="bg-[#0f141c] border border-slate-800 text-white">
-        
-        {/* Ecrã Superior de Live Roll */}
         <div className="relative h-40 bg-[#0a0d14] rounded-xl border border-slate-900 flex flex-col items-center justify-center overflow-hidden mb-6 shadow-inner">
           <div className="absolute inset-0 opacity-5 bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:14px_14px]" />
           
@@ -1287,7 +1239,6 @@ export function DiceGame() {
           </div>
         </div>
 
-        {/* Stats Grid Estilizada */}
         <div className="grid grid-cols-3 gap-2.5 mb-6">
           <div className="bg-[#161d2a] border border-slate-800 p-2.5 rounded-xl text-center">
             <span className="text-[10px] uppercase font-bold text-slate-400 flex items-center justify-center gap-1 mb-0.5">
@@ -1311,11 +1262,8 @@ export function DiceGame() {
           </div>
         </div>
 
-        {/* Interactive Advanced Slider Bar */}
         <div className="mb-8 relative pt-6">
           <div className="relative h-4 bg-[#1a2232] rounded-full border border-slate-800 shadow-inner">
-            
-            {/* Zona Vermelha / Verde Dinâmica */}
             <div 
               className={`absolute inset-y-0 left-0 rounded-l-full transition-colors duration-300 ${direction === 'under' ? 'bg-emerald-500 bg-success' : 'bg-red-500'}`}
               style={{ width: `${target}%` }}
@@ -1325,7 +1273,6 @@ export function DiceGame() {
               style={{ width: `${100 - target}%` }}
             />
 
-            {/* Marcador do pino central do Alvo */}
             <div 
               className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 transition-all duration-150 pointer-events-none"
               style={{ left: `${target}%` }}
@@ -1335,7 +1282,6 @@ export function DiceGame() {
               </div>
             </div>
 
-            {/* Marcador Flutuante do Último Resultado Real */}
             {result && !rolling && (
               <motion.div 
                 initial={{ y: -15, opacity: 0, scale: 0.5 }}
@@ -1350,7 +1296,6 @@ export function DiceGame() {
               </motion.div>
             )}
 
-            {/* Input Range Invisível */}
             <input 
               type="range" 
               min="2" 
@@ -1362,7 +1307,6 @@ export function DiceGame() {
             />
           </div>
 
-          {/* Marcadores de Escala na Base */}
           <div className="flex justify-between text-[10px] text-slate-500 font-bold px-1 mt-2 select-none">
             <span>0</span>
             <span>25</span>
@@ -1372,7 +1316,6 @@ export function DiceGame() {
           </div>
         </div>
 
-        {/* Seleção Alternada de Direção (Over / Under) */}
         <div className="grid grid-cols-2 gap-2.5 mb-5 bg-[#0a0d14] p-1 rounded-xl border border-slate-900">
           <button 
             disabled={rolling} 
@@ -1396,7 +1339,6 @@ export function DiceGame() {
           </button>
         </div>
 
-        {/* Inputs de Quantia */}
         <div className="flex gap-3 mb-4">
           <input 
             type="number" 
@@ -1419,12 +1361,10 @@ export function DiceGame() {
           ))}
         </div>
 
-        {/* Botão de Disparo */}
         <Button onClick={roll} loading={rolling} className="w-full py-3.5 text-sm font-bold uppercase tracking-wider mb-3">
           🎲 Lançar — {formatPoints(bet)}
         </Button>
 
-        {/* Mensagem do Resultado Embutida */}
         {gameMessage && (
           <div className={`p-3 rounded-xl text-center text-sm font-bold border ${
             gameMessage.type === 'win' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
@@ -1454,25 +1394,18 @@ function multColor(m) {
 }
 
 export function PlinkoGame() {
-  const { refresh } = useGame();
+  // 🛠️ ADICIONADO: updatePoints injetado
+  const { refresh, updatePoints } = useGame();
   const [bet, setBet] = useState(50);
   const [rows, setRows] = useState(16);
-  
-  // Array de bolas ativas no ecrã para permitir cliques múltiplos rápidos
   const [balls, setBalls] = useState([]);
-  // Guarda o último resultado para o painel inferior de estatísticas
   const [lastResult, setLastResult] = useState(null);
-  // Animação visual de impacto nos multiplicadores
   const [activeBucket, setActiveBucket] = useState(null);
-  // Estado local para a mensagem de jogo embutida
   const [gameMessage, setGameMessage] = useState(null);
 
-  // Função matemática para gerar a rota realista da bola baseada no destino final (data.position)
   const generatePhysicsPath = (finalColumn, totalRows) => {
     let currentColumn = 0;
     const path = [];
-    
-    // Calcula o número total de desvios para a direita que a bola TEM de fazer
     let remainingRights = finalColumn;
 
     for (let r = 0; r < totalRows; r++) {
@@ -1490,17 +1423,15 @@ export function PlinkoGame() {
         remainingRights--;
       }
 
-      // Converte a linha e coluna atual em percentagens (X, Y) dentro do tabuleiro
       const totalPegsInRow = r + 3; 
       const centerXOffset = 50; 
-      const stepX = 4.5; // Espaçamento horizontal proporcional
+      const stepX = 4.5; 
       const xPercent = centerXOffset + (currentColumn - (totalPegsInRow - 1) / 2) * stepX;
       const yPercent = ((r + 1) / (totalRows + 1)) * 82;
 
       path.push({ x: `${xPercent}%`, y: `${yPercent}%` });
     }
 
-    // Ponto de queda final dentro da caixa (alinhado perfeitamente com o multiplicador)
     const finalX = (finalColumn / finalColumn === 0 ? 0 : (finalColumn / totalRows) * 90) + (5 + (16 - totalRows) * 0.3);
     path.push({ x: `${finalX}%`, y: '96%' });
 
@@ -1513,7 +1444,10 @@ export function PlinkoGame() {
     try {
       const { data } = await api.post('/games/plinko', { betPoints: bet, rows });
       
-      // Constrói a rota física em tempo real antes de renderizar a bola
+      // 🔥 ATUALIZAÇÃO IMEDIATA:
+      // Remove o custo da moeda no momento em que a bola cai no topo do ecrã
+      updatePoints(data.points);
+
       const keyframes = generatePhysicsPath(data.position, rows);
       
       const newBall = {
@@ -1537,23 +1471,25 @@ export function PlinkoGame() {
   const handleBallComplete = (ball) => {
     setLastResult(ball.data);
     setActiveBucket(ball.targetPosition);
+    
+    // 🔥 ATUALIZAÇÃO RE-SINCRONIZADA: 
+    // Atualiza o saldo global com o prémio da bola que acabou de aterrar
+    updatePoints(ball.data.points);
     refresh();
 
-    // Emite o feedback na caixa embutida com base na rentabilidade do multiplicador tirado
     if (ball.data.multiplier >= 1) {
       setGameMessage({
         type: 'win',
-        text: `🎯 Ganhaste! A bola deu ${ball.data.multiplier}x. Recebeste +${formatPoints(ball.data.winPoints)} pts!`
+        text: `🎯 Ganhaste! A bola caiu em ${ball.data.multiplier}x (+${formatPoints(ball.data.winPoints)} pts)!`
       });
     } else {
       setGameMessage({
         type: 'loss',
-        text: `📉 Retorno parcial de ${ball.data.multiplier}x (${formatPoints(ball.data.winPoints)} pts).`
+        text: `😢 Quase! A bola caiu em ${ball.data.multiplier}x.`
       });
     }
 
-    // Remove a bola do estado após o impacto e desliga o brilho do bucket após 200ms
-    setTimeout(() => setActiveBucket(null), 200);
+    // Limpa a bola terminada da fila gráfica do DOM
     setBalls(prev => prev.filter(b => b.id !== ball.id));
   };
 
