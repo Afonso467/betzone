@@ -25,6 +25,9 @@ export default function Navbar() {
   if (!user) return null;
   const xpPct = Math.round((user.xp / (user.xp_next || 5000)) * 100);
 
+  // 🛠️ Função auxiliar para detetar se o avatar é um link da Web
+  const isUrlAvatar = typeof user.avatar === 'string' && (user.avatar.startsWith('http://') || user.avatar.startsWith('https://'));
+
   return (
     <header className="h-16 bg-bg2 border-b border-border flex items-center px-5 gap-3 flex-shrink-0 z-40">
       <div className="flex-1" />
@@ -52,9 +55,24 @@ export default function Navbar() {
       {/* User */}
       <button onClick={() => navigate('/profile')}
         className="flex items-center gap-2.5 px-3 py-1.5 rounded-[10px] hover:bg-bg3 transition-colors">
-        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange to-orange2 flex items-center justify-center text-lg border-2 border-border2 flex-shrink-0">
-          {user.avatar}
+        
+        {/* 🛠️ Contentor do Avatar Atualizado e Protegido */}
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange to-orange2 flex items-center justify-center text-lg border-2 border-border2 flex-shrink-0 overflow-hidden">
+          {isUrlAvatar ? (
+            <img 
+              src={user.avatar} 
+              alt={user.username} 
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                // Fallback caso a imagem externa dê erro de carregamento (ex: link partido)
+                e.target.style.display = 'none';
+              }}
+            />
+          ) : (
+            user.avatar
+          )}
         </div>
+
         <div className="text-left hidden sm:block">
           <div className="text-sm font-semibold leading-tight">{user.username}</div>
           <div className="flex items-center gap-2 mt-0.5">
