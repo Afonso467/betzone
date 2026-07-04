@@ -1017,8 +1017,9 @@ export function RouletteGame() {
     try {
       const { data } = await api.post('/games/roulette', { bets: serverBets });
 
-      // 🔥 ATUALIZAÇÃO IMEDIATA: 
-      // Deduz o custo total da mesa e sincroniza na UI no mesmo instante
+      // 🔥 1. PERDE LOGO OS PONTOS NO CLIQUE (UI INSTANTÂNEA)
+      // O backend devolve 'data.points' contendo o saldo subtraído do custo total da mesa.
+      // Atualizamos na hora para o utilizador ver o dinheiro a sair da carteira.
       updatePoints(data.points);
 
       const idx = WHEEL_ORDER.indexOf(data.winningNumber);
@@ -1029,11 +1030,19 @@ export function RouletteGame() {
         return fullRotations - (idx * segAngle + segAngle / 2);
       });
 
-      setTimeout(() => {
+      // 🎡 Aguarda os 4.2 segundos da animação da roda a girar
+      setTimeout(async () => {
         setSpinning(false);
         setResult(data);
         setBets({});
-        refresh();
+        
+        // 🔥 2. GANHA TUDO NO FINAL DA ANIMAÇÃO (SE HOUVER PRÉMIO)
+        // Fazemos uma chamada ao método 'refresh()' do teu contexto. 
+        // Como a animação acabou e o backend já registou o prémio se ele ganhou, 
+        // o 'refresh()' vai bater em '/games/state', ler os pontos atualizados com a vitória 
+        // e somar tudo de rajada no ecrã.
+        await refresh();
+
         if (data.totalWon > 0) toast.success(`🎉 Número ${data.winningNumber}! +${formatPoints(data.totalWon)}`);
         else toast.error(`😢 Saiu o ${data.winningNumber} (${data.winningColor})`);
       }, 4200);
