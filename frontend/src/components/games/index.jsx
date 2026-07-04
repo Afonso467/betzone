@@ -1012,15 +1012,22 @@ export function RouletteGame() {
   const spin = async () => {
     const serverBets = buildBetsPayload();
     if (!serverBets.length) return toast.error('Faz pelo menos uma aposta');
+    
     setSpinning(true);
     setResult(null);
-    try {
-      const { data } = await api.post('/games/roulette', { bets: serverBets });
+    
+    // 1. CALCULA O CUSTO TOTAL DAS APOSTAS NA MESA
+    const totalApostado = Object.values(bets).reduce((a, b) => a + b, 0);
+    
+    // 2. RETIRA INSTANTANEAMENTE OS PONTOS DA UI (Fase de Suspense)
+    // Subtraímos o total apostado do saldo atual do utilizador localmente
+    if (user && typeof user.points === 'number') {
+      updatePoints(user.points - totalApostado);
+    }
 
-      // 🔥 1. PERDE LOGO OS PONTOS NO CLIQUE (UI INSTANTÂNEA)
-      // O backend devolve 'data.points' contendo o saldo subtraído do custo total da mesa.
-      // Atualizamos na hora para o utilizador ver o dinheiro a sair da carteira.
-      updatePoints(data.points);
+    try {
+      // O servidor processa a jogada em background
+      const { data } = await api.post('/games/roulette', { bets: serverBets });
 
       const idx = WHEEL_ORDER.indexOf(data.winningNumber);
       const segAngle = 360 / 37;
@@ -1030,24 +1037,27 @@ export function RouletteGame() {
         return fullRotations - (idx * segAngle + segAngle / 2);
       });
 
-      // 🎡 Aguarda os 4.2 segundos da animação da roda a girar
+      // 3. AGUARDA A ANIMAÇÃO TERMINAR (4.2 segundos)
       setTimeout(async () => {
         setSpinning(false);
         setResult(data);
         setBets({});
         
-        // 🔥 2. GANHA TUDO NO FINAL DA ANIMAÇÃO (SE HOUVER PRÉMIO)
-        // Fazemos uma chamada ao método 'refresh()' do teu contexto. 
-        // Como a animação acabou e o backend já registou o prémio se ele ganhou, 
-        // o 'refresh()' vai bater em '/games/state', ler os pontos atualizados com a vitória 
-        // e somar tudo de rajada no ecrã.
+        // 4. SÓ AGORA É QUE A CARTEIRA ATUALIZA COM O VALOR REAL DO SERVIDOR
+        // Se ganhou, o saldo vai subir de rajada. Se perdeu, mantém-se onde estava.
+        updatePoints(data.points);
         await refresh();
 
-        if (data.totalWon > 0) toast.success(`🎉 Número ${data.winningNumber}! +${formatPoints(data.totalWon)}`);
-        else toast.error(`😢 Saiu o ${data.winningNumber} (${data.winningColor})`);
+        if (data.totalWon > 0) {
+          toast.success(`🎉 Número ${data.winningNumber}! +${formatPoints(data.totalWon)}`);
+        } else {
+          toast.error(`😢 Saiu o ${data.winningNumber} (${data.winningColor})`);
+        }
       }, 4200);
     } catch (err) {
       setSpinning(false);
+      // Se a API der erro (ex: saldo insuficiente no servidor), devolvemos os pontos à carteira
+      refresh();
       toast.error(err.response?.data?.error || err.message);
     }
   };
