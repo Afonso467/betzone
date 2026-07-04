@@ -2074,10 +2074,12 @@ export function SlotsGame() {
     if (!user) return toast.error('Erro ao carregar dados do utilizador');
     if (user.points < bet) return toast.error('Saldo insuficiente');
 
-    // 🔥 INSTANTÂNEO: Bloqueia o estado e remove a aposta da carteira na hora!
+    // 🚨 GAMBIARRA DE FORÇA BRUTA: Altera o valor diretamente no objeto antes de qualquer assincronismo
+    user.points = user.points - bet; 
+
     setSpinning(true);
     setResult(null);
-    updatePoints(user.points - bet);
+    updatePoints(user.points); // Força o trigger do Contexto com o valor já subtraído
     setAnimatingReels([true, true, true]);
 
     // Loop de rotação visual rápida
@@ -2090,6 +2092,7 @@ export function SlotsGame() {
     }, 60);
 
     try {
+      // O axios vai disparar em background, mas a UI já subtraiu lá em cima!
       const { data } = await api.post('/games/slots', { betPoints: bet });
 
       // Sequência de paragem dos rolos
@@ -2113,7 +2116,8 @@ export function SlotsGame() {
             setResult(data);
             setSpinning(false);
 
-            // 💰 Adiciona os pontos totais devolvidos pelo servidor (com o prémio incluído)
+            // 💰 Só aqui é que o saldo final real (com o prémio calculado no servidor) entra
+            user.points = data.points;
             updatePoints(data.points);
             await refresh();
             
@@ -2130,7 +2134,7 @@ export function SlotsGame() {
       clearInterval(interval);
       setSpinning(false);
       setAnimatingReels([false, false, false]);
-      // Se a API falhar, devolvemos os pontos deduzidos ao saldo do utilizador
+      // Se a API falhar, o refresh devolve o saldo original guardado no banco
       await refresh();
       toast.error(err.response?.data?.error || err.message);
     }
