@@ -976,7 +976,7 @@ const WHEEL_ORDER = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16
 
 export function RouletteGame() {
   // 🛠️ ADICIONADO: updatePoints injetado no useGame
-  const { refresh, updatePoints } = useGame();
+  const { user, refresh, updatePoints } = useGame();
   const [bets, setBets] = useState({});
   const [betInput, setBetInput] = useState(20);
   const [spinning, setSpinning] = useState(false);
@@ -1009,10 +1009,13 @@ export function RouletteGame() {
     });
   }
 
-  const spin = async () => {
+ const spin = async () => {
     const serverBets = buildBetsPayload();
     if (!serverBets.length) return toast.error('Faz pelo menos uma aposta');
     
+    // Garantia extra: se o user não estiver carregado, não deixa rodar
+    if (!user) return toast.error('Erro ao carregar dados do utilizador');
+
     setSpinning(true);
     setResult(null);
     
@@ -1020,13 +1023,11 @@ export function RouletteGame() {
     const totalApostado = Object.values(bets).reduce((a, b) => a + b, 0);
     
     // 2. RETIRA INSTANTANEAMENTE OS PONTOS DA UI (Fase de Suspense)
-    // Subtraímos o total apostado do saldo atual do utilizador localmente
-    if (user && typeof user.points === 'number') {
+    if (typeof user.points === 'number') {
       updatePoints(user.points - totalApostado);
     }
 
     try {
-      // O servidor processa a jogada em background
       const { data } = await api.post('/games/roulette', { bets: serverBets });
 
       const idx = WHEEL_ORDER.indexOf(data.winningNumber);
@@ -1043,8 +1044,7 @@ export function RouletteGame() {
         setResult(data);
         setBets({});
         
-        // 4. SÓ AGORA É QUE A CARTEIRA ATUALIZA COM O VALOR REAL DO SERVIDOR
-        // Se ganhou, o saldo vai subir de rajada. Se perdeu, mantém-se onde estava.
+        // 4. ATUALIZA COM O VALOR REAL VINDO DO BACKEND
         updatePoints(data.points);
         await refresh();
 
@@ -1056,8 +1056,7 @@ export function RouletteGame() {
       }, 4200);
     } catch (err) {
       setSpinning(false);
-      // Se a API der erro (ex: saldo insuficiente no servidor), devolvemos os pontos à carteira
-      refresh();
+      refresh(); // Se falhar, faz rollback e recupera os pontos do servidor
       toast.error(err.response?.data?.error || err.message);
     }
   };
