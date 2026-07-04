@@ -518,195 +518,205 @@ export function CrashGame() {
   );
 }
 
-// ── BLACKJACK ─────────────────────────────────────────────────────────────────
-function PlayingCard({ card, faceDown }) {
+// ── VÍDEO POKER ────────────────────────────────────────────────────────────────
+const HAND_LABELS = {
+  'royal-flush':    { label: '🏆 Royal Flush',       color: '#f59e0b' },
+  'straight-flush': { label: '🌟 Straight Flush',    color: '#8b5cf6' },
+  'four-of-a-kind': { label: '💎 Quadra',            color: '#3b82f6' },
+  'full-house':     { label: '🏠 Full House',        color: '#10b981' },
+  'flush':          { label: '🌊 Flush',             color: '#10b981' },
+  'straight':       { label: '📈 Sequência',         color: '#10b981' },
+  'three-of-a-kind':{ label: '🎯 Trinca',            color: '#6b7280' },
+  'two-pair':       { label: '✌️ Dois Pares',        color: '#6b7280' },
+  'jacks-or-better':{ label: '👑 Par Alto',          color: '#6b7280' },
+  'nothing':        { label: '❌ Sem Jogo',          color: '#ef4444' },
+};
+const PAYOUT_TABLE = [
+  { hand: 'royal-flush',    payout: 800 },
+  { hand: 'straight-flush', payout: 50  },
+  { hand: 'four-of-a-kind', payout: 25  },
+  { hand: 'full-house',     payout: 9   },
+  { hand: 'flush',          payout: 6   },
+  { hand: 'straight',       payout: 4   },
+  { hand: 'three-of-a-kind',payout: 3   },
+  { hand: 'two-pair',       payout: 2   },
+  { hand: 'jacks-or-better',payout: 1   },
+];
+ 
+function PokerCard({ card, held, faceDown, onClick }) {
+  if (!card) return <div className="w-16 h-24 rounded-lg bg-bg4 border border-border2" />;
   return (
-    <motion.div
-      initial={{ rotateY: 90, scale: 0.8 }}
-      animate={{ rotateY: 0, scale: 1 }}
-      className={`w-14 h-20 rounded-lg flex items-center justify-center text-lg font-bold
-        border shadow-card -ml-2 first:ml-0 flex-shrink-0
-        ${faceDown ? 'bg-gradient-to-br from-blue/40 to-purple/40 border-slate-700' :
-          card?.red ? 'bg-white text-red-600 border-gray-200' : 'bg-white text-gray-900 border-gray-200'}`}
-    >
-      {faceDown ? '' : card ? `${card.v}${card.s}` : ''}
+    <motion.div whileHover={!faceDown ? { y: -4 } : {}} onClick={onClick}
+      className={`relative w-16 h-24 rounded-lg flex flex-col items-center justify-center text-sm font-bold
+        cursor-pointer select-none border-2 transition-all
+        ${held ? 'border-orange shadow-glow' : 'border-border2 hover:border-border'}
+        ${faceDown ? 'bg-gradient-to-br from-blue/40 to-purple/40' : card.red ? 'bg-white text-red-600' : 'bg-white text-gray-900'}`}
+      style={{ minWidth: '64px' }}>
+      {!faceDown && (
+        <>
+          <span className="text-lg">{card.v}</span>
+          <span className="text-base">{card.s}</span>
+        </>
+      )}
+      {held && <span className="absolute -top-5 text-[10px] font-bold text-orange">HOLD</span>}
     </motion.div>
   );
 }
-
-export function BlackjackGame() {
-  // 🛠️ ADICIONADO: updatePoints injetado
-  const { refresh, updatePoints } = useGame();
-  const [bet, setBet]   = useState(50);
-  const [phase, setPhase] = useState('bet'); // bet | play | done
-  const [playerHand, setPlayerHand] = useState([]);
-  const [dealerHand, setDealerHand] = useState([]);
+ 
+export function VideoPokerGame() {
+  const { refresh } = useGame();
+  const [bet, setBet] = useState(50);
+  const [phase, setPhase] = useState('bet'); // bet | hold | done
+  const [hand, setHand] = useState([]);
   const [deck, setDeck] = useState([]);
+  const [held, setHeld] = useState([]);
   const [result, setResult] = useState(null);
-  const [winPoints, setWinPoints] = useState(0);
-  const [gameMessage, setGameMessage] = useState(null);
-
+  const [loading, setLoading] = useState(false);
+ 
   const deal = async () => {
-    setGameMessage(null);
+    setLoading(true);
+    setResult(null);
+    setHeld([]);
     try {
-      const { data } = await api.post('/games/blackjack/deal', { betPoints: bet });
-      
-      // 🔥 ATUALIZAÇÃO: Remove o valor da aposta de imediato na UI
-      updatePoints(data.points);
-
-      setPlayerHand(data.playerHand);
-      setDealerHand(data.dealerHand);
+      const { data } = await api.post('/games/poker/deal', { betPoints: bet });
+      setHand(data.hand);
       setDeck(data.deck);
-      setPhase(data.isBlackjack ? 'done' : 'play');
-      setResult(data.isBlackjack ? 'blackjack' : null);
-      
+      setPhase('hold');
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+ 
+  const toggleHold = (i) => {
+    if (phase !== 'hold') return;
+    setHeld(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
+  };
+ 
+  const draw = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.post('/games/poker/hold', { hand, deck, held, betPoints: bet });
+      setHand(data.finalHand);
+      setResult(data);
+      setPhase('done');
       refresh();
-
-      if (data.isBlackjack) {
-        setGameMessage({
-          type: 'win',
-          text: `🃏 NATURAL BLACKJACK! Recebeste +${formatPoints(bet * 2.5)} pts!`
-        });
-      }
+      if (data.winPoints > 0) toast.success(`🃏 ${HAND_LABELS[data.handName]?.label}! +${formatPoints(data.winPoints)}`);
+      else toast.error('Sem jogo desta vez');
     } catch (err) {
-      setGameMessage({
-        type: 'error',
-        text: err.response?.data?.error || err.message || 'Erro ao iniciar jogo'
-      });
+      toast.error(err.response?.data?.error || err.message);
+    } finally {
+      setLoading(false);
     }
   };
-
-  const action = async (act) => {
-    try {
-      const { data } = await api.post('/games/blackjack/action', {
-        action: act, playerHand, dealerHand, deck, betPoints: bet,
-      });
-      
-      // 🔥 ATUALIZAÇÃO: Sincroniza o saldo após a ação (especialmente Double ou ganho final)
-      updatePoints(data.points);
-
-      setPlayerHand(data.playerHand);
-      setDealerHand(data.dealerHand);
-      setDeck(data.deck);
-      
-      if (data.result) {
-        setResult(data.result);
-        setWinPoints(data.winPoints);
-        setPhase('done');
-        refresh();
-
-        if (data.winPoints > 0) {
-          setGameMessage({
-            type: 'win',
-            text: `🎉 Ganhaste! Mão final vencedora com ${data.result === 'blackjack' ? 'Blackjack' : 'sucesso'}. Adicionados +${formatPoints(data.winPoints)} pts!`
-          });
-        } else if (data.result === 'push') {
-          setGameMessage({
-            type: 'draw',
-            text: `🤝 Empate (Push)! A tua aposta de ${formatPoints(bet)} pts foi devolvida.`
-          });
-        } else {
-          setGameMessage({
-            type: 'loss',
-            text: data.result === 'bust' ? '💥 BUST! Ultrapassaste os 21 pontos.' : '❌ O Dealer ganhou esta mão.'
-          });
-        }
-      }
-    } catch (err) {
-      setGameMessage({
-        type: 'error',
-        text: err.response?.data?.error || err.message || 'Erro na jogada'
-      });
-    }
-  };
-
-  const handVal = (hand) => {
-    let t = hand.reduce((s, c) => {
-      if (['J','Q','K'].includes(c.v)) return s + 10;
-      if (c.v === 'A') return s + 11;
-      return s + parseInt(c.v);
-    }, 0);
-    let aces = hand.filter(c => c.v === 'A').length;
-    while (t > 21 && aces-- > 0) t -= 10;
-    return t;
-  };
-
-  const reset = () => { 
-    setPhase('bet'); 
-    setPlayerHand([]); 
-    setDealerHand([]); 
-    setResult(null); 
-    setWinPoints(0); 
-    setGameMessage(null); 
-  };
-
+ 
   return (
-    <div className="max-w-xl mx-auto space-y-4">
-      <div className="rounded-xl p-6 min-h-64 flex flex-col items-center gap-4 border border-slate-800"
-        style={{ background: 'radial-gradient(ellipse at center, #1a4731, #0d2b1e)' }}>
-        {phase !== 'bet' && (
-          <>
-            <div className="w-full">
-              <p className="text-xs text-white/50 text-center mb-2">
-                DEALER {phase === 'done' ? `— ${handVal(dealerHand)}` : ''}
+    <div className="max-w-5xl mx-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-5">
+        {/* Jogo principal */}
+        <div className="space-y-4">
+          {/* Tabela de pagamentos */}
+          <Card className="p-3">
+            <div className="grid grid-cols-3 gap-1">
+              {PAYOUT_TABLE.map(p => {
+                const info = HAND_LABELS[p.hand];
+                const isWinner = result?.handName === p.hand;
+                return (
+                  <div key={p.hand} className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-all
+                    ${isWinner ? 'bg-orange/20 ring-1 ring-orange' : 'bg-bg4'}`}>
+                    <span className="text-text2 truncate">{info?.label}</span>
+                    <span className="font-bold text-orange ml-1 flex-shrink-0">{p.payout}x</span>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+ 
+          <Card>
+            {/* Mão de cartas */}
+            <div className="flex justify-center gap-2 mb-5 mt-2" style={{ minHeight: '110px' }}>
+              {phase === 'bet'
+                ? Array.from({ length: 5 }, (_, i) => <PokerCard key={i} card={null} faceDown held={false} />)
+                : hand.map((card, i) => (
+                    <PokerCard key={i} card={card} held={held.includes(i)} faceDown={false}
+                      onClick={() => phase === 'hold' && toggleHold(i)} />
+                  ))
+              }
+            </div>
+ 
+            {result && (
+              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+                className="text-center mb-4">
+                <div className="text-lg font-bold mb-1" style={{ color: HAND_LABELS[result.handName]?.color }}>
+                  {HAND_LABELS[result.handName]?.label}
+                </div>
+                <Badge color={result.winPoints > 0 ? 'green' : 'red'}>
+                  {result.winPoints > 0 ? `+${formatPoints(result.winPoints)} (${result.multiplier}x)` : 'Sem ganho'}
+                </Badge>
+              </motion.div>
+            )}
+ 
+            {phase === 'hold' && (
+              <p className="text-center text-text2 text-xs mb-3">
+                Clica nas cartas que queres guardar. As outras serão substituídas.
               </p>
-              <div className="flex justify-center">
-                {dealerHand.map((c, i) => (
-                  <PlayingCard key={i} card={c} faceDown={i === 1 && phase === 'play'} />
-                ))}
-              </div>
+            )}
+ 
+            <div className="flex gap-3 mb-3">
+              <input type="number" min="1" value={bet} disabled={phase !== 'bet' || loading}
+                onChange={e => setBet(Math.max(1, +e.target.value))}
+                className="flex-1 bg-bg3 border border-border2 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none focus:border-orange" />
+              {[10, 50, 100, 500].map(v => (
+                <button key={v} disabled={phase !== 'bet' || loading} onClick={() => setBet(v)}
+                  className="px-2.5 py-2 rounded-lg bg-bg4 border border-border text-xs font-semibold hover:border-orange transition-colors disabled:opacity-40">
+                  {v}
+                </button>
+              ))}
             </div>
-            <div className="text-white/30 text-xs">• • •</div>
-            <div className="w-full">
-              <p className="text-xs text-white/50 text-center mb-2">JOGADOR — {handVal(playerHand)}</p>
-              <div className="flex justify-center">
-                {playerHand.map((c, i) => <PlayingCard key={i} card={c} />)}
-              </div>
-            </div>
-          </>
-        )}
-        {phase === 'bet' && (
-          <div className="text-white/30 text-sm flex items-center gap-2 my-auto select-none">🃏 Configura e inicia</div>
-        )}
-      </div>
-
-      <Card className="bg-[#0f141c] border border-slate-800 text-white space-y-4">
-        <Input 
-          label="💎 Aposta (pts)" 
-          type="number" 
-          min="1" 
-          step="1" 
-          value={bet}
-          onChange={e => setBet(+e.target.value)} 
-          disabled={phase === 'play'} 
-        />
-        
-        <div className="flex gap-2 flex-wrap">
-          {phase === 'bet'  && <Button onClick={deal} className="flex-1 font-bold">🃏 Distribuir</Button>}
-          {phase === 'play' && (
-            <>
-              <Button onClick={() => action('hit')} className="flex-1 font-bold bg-blue-600 hover:bg-blue-700">Hit</Button>
-              <Button onClick={() => action('stand')} className="flex-1 font-bold bg-amber-600 hover:bg-amber-700">Stand</Button>
-              <Button onClick={() => action('double')} className="flex-1 font-bold bg-purple-600 hover:bg-purple-700">Double</Button>
-            </>
-          )}
-          {phase === 'done' && <Button onClick={reset} className="flex-1 font-bold bg-slate-700 hover:bg-slate-600">🔄 Nova Mão</Button>}
+ 
+            {phase === 'bet' && <Button onClick={deal} loading={loading} className="w-full py-3">🃏 Distribuir — {formatPoints(bet)}</Button>}
+            {phase === 'hold' && <Button onClick={draw} loading={loading} className="w-full py-3">🎴 Trocar Cartas</Button>}
+            {phase === 'done' && <Button onClick={() => { setPhase('bet'); setHand([]); setResult(null); setHeld([]); }} className="w-full py-3">🔄 Nova Mão</Button>}
+          </Card>
         </div>
-
-        {gameMessage && (
-          <div className={`p-3 rounded-xl text-center text-sm font-bold border ${
-            gameMessage.type === 'win' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
-            gameMessage.type === 'loss' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-            gameMessage.type === 'draw' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-slate-800/50 text-slate-400 border-slate-700'
-          }`}>
-            {gameMessage.text}
-          </div>
-        )}
-      </Card>
+ 
+        {/* Guia lateral de mãos */}
+        <div>
+          <Card className="sticky top-0">
+            <h3 className="font-bold text-sm mb-3">📖 Guia de Mãos</h3>
+            <div className="space-y-2.5">
+              {[
+                { emoji: '👑', name: 'Royal Flush', payout: '800x', color: '#f59e0b', desc: 'A, K, Q, J, 10 do mesmo naipe' },
+                { emoji: '🌟', name: 'Straight Flush', payout: '50x', color: '#8b5cf6', desc: '5 cartas seguidas do mesmo naipe' },
+                { emoji: '💎', name: 'Quadra', payout: '25x', color: '#3b82f6', desc: '4 cartas do mesmo valor' },
+                { emoji: '🏠', name: 'Full House', payout: '9x', color: '#10b981', desc: 'Trinca + Par' },
+                { emoji: '🌊', name: 'Flush', payout: '6x', color: '#10b981', desc: '5 cartas do mesmo naipe' },
+                { emoji: '📈', name: 'Sequência', payout: '4x', color: '#10b981', desc: '5 cartas seguidas (qualquer naipe)' },
+                { emoji: '🎯', name: 'Trinca', payout: '3x', color: '#6b7280', desc: '3 cartas do mesmo valor' },
+                { emoji: '✌️', name: 'Dois Pares', payout: '2x', color: '#6b7280', desc: 'Dois pares diferentes' },
+                { emoji: '👑', name: 'Par Alto', payout: '1x', color: '#6b7280', desc: 'Par de J, Q, K ou A' },
+              ].map((h, i) => (
+                <div key={i} className="bg-bg4 rounded-lg p-2.5">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: h.color }}>
+                      {h.emoji} {h.name}
+                    </span>
+                    <span className="text-xs font-black text-orange">{h.payout}</span>
+                  </div>
+                  <p className="text-[10px] text-text3">{h.desc}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 pt-3 border-t border-border">
+              <p className="text-[10px] text-text3 text-center">💡 Dica: guarda sempre pares ou melhor. Com mão fraca, guarda cartas altas (J, Q, K, A).</p>
+            </div>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
-
 // ── CASE OPENING ─────────────────────────────────────────────────────────────
 
 export function CaseOpeningGame() {
