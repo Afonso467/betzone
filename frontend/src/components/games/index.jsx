@@ -153,8 +153,14 @@ export function CoinflipGame() {
   
   const [visualFace, setVisualFace] = useState('heads'); 
 
-  const flip = async () => {
+ const flip = async () => {
     if (!choice) return toast.error('Escolhe Cara ou Coroa');
+    if (!user) return toast.error('Erro ao carregar dados do utilizador');
+    if (user.points < bet) return toast.error('Saldo insuficiente');
+    
+    // 🛠️ 1. FORÇA A DEDUÇÃO IMEDIATA LOCAL ANTES DE TUDO
+    // Isto roda antes da chamada de rede para garantir que os pontos somem na hora
+    updatePoints(user.points - bet);
     
     setFlipping(true);
     setResult(null);
@@ -164,25 +170,29 @@ export function CoinflipGame() {
     }, 150);
 
     try {
+      // 🛠️ 2. AGUARDA O SERVIDOR EM BACKGROUND
       const { data } = await api.post('/games/coinflip', { betPoints: bet, choice });
       
-      clearInterval(faceInterval);
-      setVisualFace(data.result);
-
-      // 🔥 ATUALIZAÇÃO IMEDIATA: Aplica o saldo enviado pelo backend na hora (ganho ou perda)
-      updatePoints(data.points);
-
-      setTimeout(() => {
+      // 🛠️ 3. REVELAÇÃO CONTROLADA (SÓ NO FIM DA ANIMAÇÃO)
+      setTimeout(async () => {
+        clearInterval(faceInterval);
+        setVisualFace(data.result);
         setResult(data);
         setFlipping(false);
-        refresh();
+        
+        // Só aqui, após os 900ms, é que o saldo final (com a vitória somada) entra
+        updatePoints(data.points);
+        await refresh();
+        
         if (data.won) toast.success(`🎉 Ganhastes! +${formatPoints(data.winPoints)}`);
         else toast.error(`😢 Perdeste ${formatPoints(bet)}`);
-      }, 900);
+      }, 900); // Se achares 900ms muito rápido, podes aumentar para 1200 ou 1500
 
     } catch (err) {
       clearInterval(faceInterval);
       setFlipping(false);
+      // Rollback imediato se o servidor rejeitar a aposta
+      refresh();
       toast.error(err.response?.data?.error || err.message);
     }
   };
