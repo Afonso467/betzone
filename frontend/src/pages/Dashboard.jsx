@@ -29,6 +29,9 @@ export default function Dashboard() {
   if (!user) return null;
   const xpPct = Math.round((user.xp / (user.xp_next || 5000)) * 100);
 
+  // 🛠️ Verifica se o avatar é um link externo
+  const isUrlAvatar = typeof user.avatar === 'string' && (user.avatar.startsWith('http://') || user.avatar.startsWith('https://'));
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -39,9 +42,21 @@ export default function Dashboard() {
       {/* User hero card */}
       <Card className="border-border2" style={{ background: 'linear-gradient(135deg, var(--bg3), var(--bg4))' }}>
         <div className="flex items-center gap-4 flex-wrap">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange to-orange2 flex items-center justify-center text-3xl border-2 border-border2 flex-shrink-0">
-            {user.avatar}
+          
+          {/* 🛠️ Div do Avatar corrigida com overflow-hidden e condicional de imagem */}
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange to-orange2 flex items-center justify-center text-3xl border-2 border-border2 flex-shrink-0 overflow-hidden">
+            {isUrlAvatar ? (
+              <img 
+                src={user.avatar} 
+                alt={user.username} 
+                className="w-full h-full object-cover"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            ) : (
+              user.avatar
+            )}
           </div>
+
           <div className="flex-1 min-w-0">
             <div className="text-lg font-extrabold">{user.username}</div>
             <div className="text-text2 text-sm mb-2">Nível {user.level} · {formatNumber(user.xp)} / {formatNumber(user.xp_next || 5000)} XP</div>
@@ -64,7 +79,7 @@ export default function Dashboard() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard icon="⚡" label="Total XP"  value={formatNumber(user.xp)}      change="+340 esta semana" changeUp />
+        <StatCard icon="⚡" label="Total XP"  value={formatNumber(user.xp)}   change="+340 esta semana" changeUp />
         <StatCard icon="🏅" label="Nível"     value={user.level}                 change={`${xpPct}% para Lv.${user.level+1}`} changeUp />
         <StatCard icon="💎" label="Pontos"    value={formatNumber(user.points)}  change="+120 hoje" changeUp />
         <StatCard icon="🏆" label="Vitórias"  value={user.wins}                  change={`${user.wins}/${(user.wins||0)+(user.losses||0)} jogos`} changeUp />
