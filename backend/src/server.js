@@ -21,8 +21,10 @@ const { errorHandler }   = require('./middleware/errorHandler');
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
+// 🔗 CONFIGURAÇÃO RENDER: Confia no proxy reverso do Render para ler os IPs corretos
+app.set('trust proxy', 1);
+
 // CORS_ORIGIN pode ser uma única URL ou várias separadas por vírgula
-// (ex: "http://localhost:5173,https://teu-user.github.io")
 const allowedOrigins = (process.env.CORS_ORIGIN || '*').split(',').map(s => s.trim());
 app.use(cors({
   origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
@@ -31,15 +33,18 @@ app.use(express.json());
 if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
 
 // Rate limit global
-app.use(rateLimit({ windowMs: 60 * 1000, max: 300,
-  message: { error: 'Demasiados pedidos, aguarda um momento.' } }));
+app.use(rateLimit({ 
+  windowMs: 60 * 1000, 
+  max: 300,
+  message: { error: 'Demasiados pedidos, aguarda um momento.' } 
+}));
 
 // Rotas
 app.use('/api/auth',       authRoutes);
-app.use('/api/users',       userRoutes);
-app.use('/api/games',       gameRoutes);
-app.use('/api/skins',       skinRoutes);
-app.use('/api/giveaways',   giveawayRoutes);
+app.use('/api/users',      userRoutes);
+app.use('/api/games',      gameRoutes);
+app.use('/api/skins',      skinRoutes);
+app.use('/api/giveaways',  giveawayRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/store',       storeRoutes);
 app.use('/api/sports',      sportsRoutes);
