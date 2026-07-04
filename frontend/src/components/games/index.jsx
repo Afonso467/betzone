@@ -1318,8 +1318,8 @@ export function RouletteGame() {
 
 // ── DICE (HiLo) ────────────────────────────────────────────────────────────────
 export function DiceGame() {
-  // 🛠️ ADICIONADO: updatePoints injetado
-  const { refresh, updatePoints } = useGame();
+  // 🛠️ CORRIGIDO: Adicionado 'user' para permitir a manipulação imediata do saldo local
+  const { user, refresh, updatePoints } = useGame();
   const [bet, setBet] = useState(50);
   const [target, setTarget] = useState(50);
   const [direction, setDirection] = useState('over');
@@ -1343,20 +1343,29 @@ export function DiceGame() {
   }, [rolling]);
 
   const roll = async () => {
+    if (!user) return toast.error('Erro ao carregar dados do utilizador');
+    if (user.points < bet) return toast.error('Saldo insuficiente');
+
+    // 🛠️ 1. DEDUÇÃO LOCAL IMEDIATA: O saldo desce na hora do clique
+    updatePoints(user.points - bet);
+
     setRolling(true);
     setResult(null);
     setGameMessage(null);
     
     try {
+      // O pedido é disparado em background e a resposta real fica "na manga"
       const { data } = await api.post('/games/dice', { betPoints: bet, target, direction });
-      
-      // 🔥 ATUALIZAÇÃO IMEDIATA: Deduz o saldo no instante exato da rolagem
-      updatePoints(data.points);
 
-      setTimeout(() => {
+      // 🛠️ 2. ANIMAÇÃO CONTROLADA (700ms de suspense)
+      // Bloqueamos qualquer alteração na carteira até os números pararem de piscar
+      setTimeout(async () => {
         setResult(data);
         setDisplayRoll(data.roll);
-        refresh();
+        
+        // 🛠️ 3. REVELAÇÃO DO SALDO FINAL SÓ NO FIM DE TUDO
+        updatePoints(data.points);
+        await refresh();
         
         if (data.won) {
           setGameMessage({
@@ -1373,11 +1382,13 @@ export function DiceGame() {
       }, 700);
 
     } catch (err) {
+      setRolling(false);
+      // Se a rota do servidor falhar por completo, devolvemos os pontos ao cliente
+      refresh();
       setGameMessage({
         type: 'error',
         text: err.response?.data?.error || err.message || 'Erro no processamento'
       });
-      setRolling(false);
     }
   };
 
