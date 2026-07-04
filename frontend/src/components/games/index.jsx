@@ -531,6 +531,7 @@ const HAND_LABELS = {
   'jacks-or-better':{ label: '👑 Par Alto',          color: '#6b7280' },
   'nothing':        { label: '❌ Sem Jogo',          color: '#ef4444' },
 };
+
 const PAYOUT_TABLE = [
   { hand: 'royal-flush',    payout: 800 },
   { hand: 'straight-flush', payout: 50  },
@@ -564,7 +565,6 @@ function PokerCard({ card, held, faceDown, onClick }) {
 }
  
 export function VideoPokerGame() {
-  // 🛠️ CORRIGIDO: Adicionado 'user' e extraído o 'updatePoints' corretamente
   const { user, refresh, updatePoints } = useGame();
   const [bet, setBet] = useState(50);
   const [phase, setPhase] = useState('bet'); // bet | hold | done
@@ -582,20 +582,16 @@ export function VideoPokerGame() {
     setResult(null);
     setHeld([]);
 
-    // 🛠️ 1. DEDUÇÃO LOCAL IMEDIATA DA APOSTA
     updatePoints(user.points - bet);
 
     try {
       const { data } = await api.post('/games/poker/deal', { betPoints: bet });
-      
-      // Sincroniza o saldo deduzido oficialmente pela API
       updatePoints(data.points);
-      
       setHand(data.hand);
       setDeck(data.deck);
       setPhase('hold');
     } catch (err) {
-      refresh(); // Se a API falhar, devolve os pontos ao utilizador
+      refresh();
       toast.error(err.response?.data?.error || err.message);
     } finally {
       setLoading(false);
@@ -610,7 +606,6 @@ export function VideoPokerGame() {
   const draw = async () => {
     setLoading(true);
 
-    // Criamos um delay forçado de 400ms para simular a troca de cartas antes de atualizar a UI e os pontos
     const delayPromise = new Promise(resolve => setTimeout(resolve, 400));
     const apiPromise = api.post('/games/poker/hold', { hand, deck, held, betPoints: bet });
 
@@ -618,12 +613,10 @@ export function VideoPokerGame() {
       const [_, apiResponse] = await Promise.all([delayPromise, apiPromise]);
       const { data } = apiResponse;
 
-      // Primeiro atualiza as cartas e a fase visualmente
       setHand(data.finalHand);
       setResult(data);
       setPhase('done');
 
-      // 🛠️ 2. COMPASSO DE ESPERA DE 300ms: Aguarda a animação das novas cartas assentar
       setTimeout(async () => {
         updatePoints(data.points);
         await refresh();
@@ -646,9 +639,7 @@ export function VideoPokerGame() {
   return (
     <div className="max-w-5xl mx-auto">
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-5">
-        {/* Jogo principal */}
         <div className="space-y-4">
-          {/* Tabela de pagamentos */}
           <Card className="p-3">
             <div className="grid grid-cols-3 gap-1">
               {PAYOUT_TABLE.map(p => {
@@ -666,7 +657,6 @@ export function VideoPokerGame() {
           </Card>
  
           <Card>
-            {/* Mão de cartas */}
             <div className="flex justify-center gap-2 mb-5 mt-2" style={{ minHeight: '110px' }}>
               {phase === 'bet'
                 ? Array.from({ length: 5 }, (_, i) => <PokerCard key={i} card={null} faceDown held={false} />)
@@ -713,7 +703,6 @@ export function VideoPokerGame() {
           </Card>
         </div>
  
-        {/* Guia lateral de mãos */}
         <div>
           <Card className="sticky top-0">
             <h3 className="font-bold text-sm mb-3">📖 Guia de Mãos</h3>
