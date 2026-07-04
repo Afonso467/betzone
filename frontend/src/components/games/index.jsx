@@ -1617,6 +1617,221 @@ export function PlinkoGame() {
   );
 }
 
+// ── BLACKJACK DEFINITIVO ──────────────────────────────────────────────────────
+function PlayingCard({ card, faceDown }) {
+  return (
+    <motion.div
+      initial={{ rotateY: 90, scale: 0.8 }}
+      animate={{ rotateY: 0, scale: 1 }}
+      transition={{ duration: 0.3 }}
+      className={`w-14 h-20 rounded-lg flex items-center justify-center text-lg font-bold
+        border shadow-card -ml-2 first:ml-0 flex-shrink-0
+        ${faceDown ? 'bg-gradient-to-br from-blue/40 to-purple/40 border-slate-700' :
+          card?.red ? 'bg-white text-red-600 border-gray-200' : 'bg-white text-gray-900 border-gray-200'}`}
+    >
+      {faceDown ? '' : card ? `${card.v}${card.s}` : ''}
+    </motion.div>
+  );
+}
+
+export function BlackjackGame() {
+  const { user, refresh, updatePoints } = useGame();
+  const [bet, setBet]   = useState(50);
+  const [phase, setPhase] = useState('bet'); // bet | play | done
+  const [playerHand, setPlayerHand] = useState([]);
+  const [dealerHand, setDealerHand] = useState([]);
+  const [deck, setDeck] = useState([]);
+  const [result, setResult] = useState(null);
+  const [winPoints, setWinPoints] = useState(0);
+  const [gameMessage, setGameMessage] = useState(null);
+
+  const deal = async () => {
+    if (!user) return toast.error('Erro ao carregar dados do utilizador');
+    if (user.points < bet) return toast.error('Saldo insuficiente');
+
+    updatePoints(user.points - bet);
+    setGameMessage(null);
+
+    const delayPromise = new Promise(resolve => setTimeout(resolve, 400));
+    const apiPromise = api.post('/games/blackjack/deal', { betPoints: bet });
+
+    try {
+      const [_, apiResponse] = await Promise.all([delayPromise, apiPromise]);
+      const { data } = apiResponse;
+
+      setPlayerHand(data.playerHand);
+      setDealerHand(data.dealerHand);
+      setDeck(data.deck);
+      setPhase(data.isBlackjack ? 'done' : 'play');
+      setResult(data.isBlackjack ? 'blackjack' : null);
+
+      if (data.isBlackjack) {
+        setTimeout(async () => {
+          updatePoints(data.points);
+          await refresh();
+          setGameMessage({
+            type: 'win',
+            text: `🃏 NATURAL BLACKJACK! Recebeste +${formatPoints(bet * 2.5)} pts!`
+          });
+        }, 300);
+      } else {
+        updatePoints(data.points);
+      }
+    } catch (err) {
+      refresh();
+      setGameMessage({
+        type: 'error',
+        text: err.response?.data?.error || err.message || 'Erro ao iniciar jogo'
+      });
+    }
+  };
+
+  const action = async (act) => {
+    if (!user) return;
+
+    if (act === 'double') {
+      if (user.points < bet) return toast.error('Saldo insuficiente para dobrar');
+      updatePoints(user.points - bet); 
+    }
+
+    const delayPromise = new Promise(resolve => setTimeout(resolve, 450));
+    const apiPromise = api.post('/games/blackjack/action', {
+      action: act, playerHand, dealerHand, deck, betPoints: bet,
+    });
+
+    try {
+      const [_, apiResponse] = await Promise.all([delayPromise, apiPromise]);
+      const { data } = apiResponse;
+
+      setPlayerHand(data.playerHand);
+      setDealerHand(data.dealerHand);
+      setDeck(data.deck);
+      
+      if (data.result) {
+        setTimeout(async () => {
+          setResult(data.result);
+          setWinPoints(data.winPoints);
+          setPhase('done');
+          
+          updatePoints(data.points);
+          await refresh();
+
+          if (data.winPoints > 0) {
+            setGameMessage({
+              type: 'win',
+              text: `🎉 Ganhaste! Mão vencedora com ${data.result === 'blackjack' ? 'Blackjack' : 'sucesso'}. Adicionados +${formatPoints(data.winPoints)} pts!`
+            });
+          } else if (data.result === 'push') {
+            setGameMessage({
+              type: 'draw',
+              text: `🤝 Empate (Push)! A tua aposta foi devolvida.`
+            });
+          } else {
+            setGameMessage({
+              type: 'loss',
+              text: data.result === 'bust' ? '💥 BUST! Ultrapassaste os 21 pontos.' : '❌ O Dealer ganhou esta mão.'
+            });
+          }
+        }, 300);
+      } else {
+        updatePoints(data.points);
+      }
+    } catch (err) {
+      refresh();
+      setGameMessage({
+        type: 'error',
+        text: err.response?.data?.error || err.message || 'Erro na jogada'
+      });
+    }
+  };
+
+  const handVal = (hand) => {
+    let t = hand.reduce((s, c) => {
+      if (['J','Q','K'].includes(c.v)) return s + 10;
+      if (c.v === 'A') return s + 11;
+      return s + parseInt(c.v);
+    }, 0);
+    let aces = hand.filter(c => c.v === 'A').length;
+    while (t > 21 && aces-- > 0) t -= 10;
+    return t;
+  };
+
+  const reset = () => { 
+    setPhase('bet'); 
+    setPlayerHand([]); 
+    setDealerHand([]); 
+    setResult(null); 
+    setWinPoints(0); 
+    setGameMessage(null); 
+  };
+
+  return (
+    <div className="max-w-xl mx-auto space-y-4">
+      <div className="rounded-xl p-6 min-h-64 flex flex-col items-center gap-4 border border-slate-800"
+        style={{ background: 'radial-gradient(ellipse at center, #1a4731, #0d2b1e)' }}>
+        {phase !== 'bet' && (
+          <>
+            <div className="w-full">
+              <p className="text-xs text-white/50 text-center mb-2">
+                DEALER {phase === 'done' ? `— ${handVal(dealerHand)}` : ''}
+              </p>
+              <div className="flex justify-center">
+                {dealerHand.map((c, i) => (
+                  <PlayingCard key={i} card={c} faceDown={i === 1 && phase === 'play'} />
+                ))}
+              </div>
+            </div>
+            <div className="text-white/30 text-xs">• • •</div>
+            <div className="w-full">
+              <p className="text-xs text-white/50 text-center mb-2">JOGADOR — {handVal(playerHand)}</p>
+              <div className="flex justify-center">
+                {playerHand.map((c, i) => <PlayingCard key={i} card={c} />)}
+              </div>
+            </div>
+          </>
+        )}
+        {phase === 'bet' && (
+          <div className="text-white/30 text-sm flex items-center gap-2 my-auto select-none">🃏 Configura e inicia</div>
+        )}
+      </div>
+
+      <Card className="bg-[#0f141c] border border-slate-800 text-white space-y-4">
+        <Input 
+          label="💎 Aposta (pts)" 
+          type="number" 
+          min="1" 
+          step="1" 
+          value={bet}
+          onChange={e => setBet(+e.target.value)} 
+          disabled={phase === 'play'} 
+        />
+        
+        <div className="flex gap-2 flex-wrap">
+          {phase === 'bet'  && <Button onClick={deal} className="flex-1 font-bold">🃏 Distribuir</Button>}
+          {phase === 'play' && (
+            <>
+              <Button onClick={() => action('hit')} className="flex-1 font-bold bg-blue-600 hover:bg-blue-700">Hit</Button>
+              <Button onClick={() => action('stand')} className="flex-1 font-bold bg-amber-600 hover:bg-amber-700">Stand</Button>
+              <Button onClick={() => action('double')} className="flex-1 font-bold bg-purple-600 hover:bg-purple-700">Double</Button>
+            </>
+          )}
+          {phase === 'done' && <Button onClick={reset} className="flex-1 font-bold bg-slate-700 hover:bg-slate-600">🔄 Nova Mão</Button>}
+        </div>
+
+        {gameMessage && (
+          <div className={`p-3 rounded-xl text-center text-sm font-bold border ${
+            gameMessage.type === 'win' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+            gameMessage.type === 'loss' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+            gameMessage.type === 'draw' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-slate-800/50 text-slate-400 border-slate-700'
+          }`}>
+            {gameMessage.text}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 // ── VÍDEO POKER DEFINITIVO ────────────────────────────────────────────────────
 const HAND_LABELS = {
   'royal-flush':    { label: '🏆 Royal Flush',       color: '#f59e0b' },
