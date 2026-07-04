@@ -518,226 +518,7 @@ export function CrashGame() {
   );
 }
 
-// ── VÍDEO POKER ────────────────────────────────────────────────────────────────
-const HAND_LABELS = {
-  'royal-flush':    { label: '🏆 Royal Flush',       color: '#f59e0b' },
-  'straight-flush': { label: '🌟 Straight Flush',    color: '#8b5cf6' },
-  'four-of-a-kind': { label: '💎 Quadra',            color: '#3b82f6' },
-  'full-house':     { label: '🏠 Full House',        color: '#10b981' },
-  'flush':          { label: '🌊 Flush',             color: '#10b981' },
-  'straight':       { label: '📈 Sequência',         color: '#10b981' },
-  'three-of-a-kind':{ label: '🎯 Trinca',            color: '#6b7280' },
-  'two-pair':       { label: '✌️ Dois Pares',        color: '#6b7280' },
-  'jacks-or-better':{ label: '👑 Par Alto',          color: '#6b7280' },
-  'nothing':        { label: '❌ Sem Jogo',          color: '#ef4444' },
-};
 
-const PAYOUT_TABLE = [
-  { hand: 'royal-flush',    payout: 800 },
-  { hand: 'straight-flush', payout: 50  },
-  { hand: 'four-of-a-kind', payout: 25  },
-  { hand: 'full-house',     payout: 9   },
-  { hand: 'flush',          payout: 6   },
-  { hand: 'straight',       payout: 4   },
-  { hand: 'three-of-a-kind',payout: 3   },
-  { hand: 'two-pair',       payout: 2   },
-  { hand: 'jacks-or-better', payout: 1   },
-];
- 
-function PokerCard({ card, held, faceDown, onClick }) {
-  if (!card) return <div className="w-16 h-24 rounded-lg bg-bg4 border border-border2" />;
-  return (
-    <motion.div whileHover={!faceDown ? { y: -4 } : {}} onClick={onClick}
-      className={`relative w-16 h-24 rounded-lg flex flex-col items-center justify-center text-sm font-bold
-        cursor-pointer select-none border-2 transition-all
-        ${held ? 'border-orange shadow-glow' : 'border-border2 hover:border-border'}
-        ${faceDown ? 'bg-gradient-to-br from-blue/40 to-purple/40' : card.red ? 'bg-white text-red-600' : 'bg-white text-gray-900'}`}
-      style={{ minWidth: '64px' }}>
-      {!faceDown && (
-        <>
-          <span className="text-lg">{card.v}</span>
-          <span className="text-base">{card.s}</span>
-        </>
-      )}
-      {held && <span className="absolute -top-5 text-[10px] font-bold text-orange">HOLD</span>}
-    </motion.div>
-  );
-}
- 
-export function VideoPokerGame() {
-  const { user, refresh, updatePoints } = useGame();
-  const [bet, setBet] = useState(50);
-  const [phase, setPhase] = useState('bet'); // bet | hold | done
-  const [hand, setHand] = useState([]);
-  const [deck, setDeck] = useState([]);
-  const [held, setHeld] = useState([]);
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
- 
-  const deal = async () => {
-    if (!user) return toast.error('Erro ao carregar dados do utilizador');
-    if (user.points < bet) return toast.error('Saldo insuficiente');
-
-    setLoading(true);
-    setResult(null);
-    setHeld([]);
-
-    updatePoints(user.points - bet);
-
-    try {
-      const { data } = await api.post('/games/poker/deal', { betPoints: bet });
-      updatePoints(data.points);
-      setHand(data.hand);
-      setDeck(data.deck);
-      setPhase('hold');
-    } catch (err) {
-      refresh();
-      toast.error(err.response?.data?.error || err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
- 
-  const toggleHold = (i) => {
-    if (phase !== 'hold') return;
-    setHeld(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
-  };
- 
-  const draw = async () => {
-    setLoading(true);
-
-    const delayPromise = new Promise(resolve => setTimeout(resolve, 400));
-    const apiPromise = api.post('/games/poker/hold', { hand, deck, held, betPoints: bet });
-
-    try {
-      const [_, apiResponse] = await Promise.all([delayPromise, apiPromise]);
-      const { data } = apiResponse;
-
-      setHand(data.finalHand);
-      setResult(data);
-      setPhase('done');
-
-      setTimeout(async () => {
-        updatePoints(data.points);
-        await refresh();
-
-        if (data.winPoints > 0) {
-          toast.success(`🃏 ${HAND_LABELS[data.handName]?.label}! +${formatPoints(data.winPoints)}`);
-        } else {
-          toast.error('Sem jogo desta vez');
-        }
-      }, 300);
-
-    } catch (err) {
-      refresh();
-      toast.error(err.response?.data?.error || err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
- 
-  return (
-    <div className="max-w-5xl mx-auto">
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-5">
-        <div className="space-y-4">
-          <Card className="p-3">
-            <div className="grid grid-cols-3 gap-1">
-              {PAYOUT_TABLE.map(p => {
-                const info = HAND_LABELS[p.hand];
-                const isWinner = result?.handName === p.hand;
-                return (
-                  <div key={p.hand} className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-all
-                    ${isWinner ? 'bg-orange/20 ring-1 ring-orange' : 'bg-bg4'}`}>
-                    <span className="text-text2 truncate">{info?.label}</span>
-                    <span className="font-bold text-orange ml-1 flex-shrink-0">{p.payout}x</span>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
- 
-          <Card>
-            <div className="flex justify-center gap-2 mb-5 mt-2" style={{ minHeight: '110px' }}>
-              {phase === 'bet'
-                ? Array.from({ length: 5 }, (_, i) => <PokerCard key={i} card={null} faceDown held={false} />)
-                : hand.map((card, i) => (
-                    <PokerCard key={i} card={card} held={held.includes(i)} faceDown={false}
-                      onClick={() => phase === 'hold' && toggleHold(i)} />
-                  ))
-              }
-            </div>
- 
-            {result && (
-              <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-                className="text-center mb-4">
-                <div className="text-lg font-bold mb-1" style={{ color: HAND_LABELS[result.handName]?.color }}>
-                  {HAND_LABELS[result.handName]?.label}
-                </div>
-                <Badge color={result.winPoints > 0 ? 'green' : 'red'}>
-                  {result.winPoints > 0 ? `+${formatPoints(result.winPoints)} (${result.multiplier}x)` : 'Sem ganho'}
-                </Badge>
-              </motion.div>
-            )}
- 
-            {phase === 'hold' && (
-              <p className="text-center text-text2 text-xs mb-3">
-                Clica nas cartas que queres guardar. As outras serão substituídas.
-              </p>
-            )}
- 
-            <div className="flex gap-3 mb-3">
-              <input type="number" min="1" value={bet} disabled={phase !== 'bet' || loading}
-                onChange={e => setBet(Math.max(1, +e.target.value))}
-                className="flex-1 bg-bg3 border border-border2 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none focus:border-orange" />
-              {[10, 50, 100, 500].map(v => (
-                <button key={v} disabled={phase !== 'bet' || loading} onClick={() => setBet(v)}
-                  className="px-2.5 py-2 rounded-lg bg-bg4 border border-border text-xs font-semibold hover:border-orange transition-colors disabled:opacity-40">
-                  {v}
-                </button>
-              ))}
-            </div>
- 
-            {phase === 'bet' && <Button onClick={deal} loading={loading} className="w-full py-3">🃏 Distribuir — {formatPoints(bet)}</Button>}
-            {phase === 'hold' && <Button onClick={draw} loading={loading} className="w-full py-3">🎴 Trocar Cartas</Button>}
-            {phase === 'done' && <Button onClick={() => { setPhase('bet'); setHand([]); setResult(null); setHeld([]); }} className="w-full py-3">🔄 Nova Mão</Button>}
-          </Card>
-        </div>
- 
-        <div>
-          <Card className="sticky top-0">
-            <h3 className="font-bold text-sm mb-3">📖 Guia de Mãos</h3>
-            <div className="space-y-2.5">
-              {[
-                { emoji: '👑', name: 'Royal Flush', payout: '800x', color: '#f59e0b', desc: 'A, K, Q, J, 10 do mesmo naipe' },
-                { emoji: '🌟', name: 'Straight Flush', payout: '50x', color: '#8b5cf6', desc: '5 cartas seguidas do mesmo naipe' },
-                { emoji: '💎', name: 'Quadra', payout: '25x', color: '#3b82f6', desc: '4 cartas do mesmo valor' },
-                { emoji: '🏠', name: 'Full House', payout: '9x', color: '#10b981', desc: 'Trinca + Par' },
-                { emoji: '🌊', name: 'Flush', payout: '6x', color: '#10b981', desc: '5 cartas do mesmo naipe' },
-                { emoji: '📈', name: 'Sequência', payout: '4x', color: '#10b981', desc: '5 cartas seguidas (qualquer naipe)' },
-                { emoji: '🎯', name: 'Trinca', payout: '3x', color: '#6b7280', desc: '3 cartas do mesmo valor' },
-                { emoji: '✌️', name: 'Dois Pares', payout: '2x', color: '#6b7280', desc: 'Dois pares diferentes' },
-                { emoji: '👑', name: 'Par Alto', payout: '1x', color: '#6b7280', desc: 'Par de J, Q, K ou A' },
-              ].map((h, i) => (
-                <div key={i} className="bg-bg4 rounded-lg p-2.5">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: h.color }}>
-                      {h.emoji} {h.name}
-                    </span>
-                    <span className="text-xs font-black text-orange">{h.payout}</span>
-                  </div>
-                  <p className="text-[10px] text-text3">{h.desc}</p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 pt-3 border-t border-border">
-              <p className="text-[10px] text-text3 text-center">💡 Dica: guarda sempre pares ou melhor. Com mão fraca, guarda cartas altas (J, Q, K, A).</p>
-            </div>
-          </Card>
-        </div>
-      </div>
-    </div>
-  );
-}
 // ── CASE OPENING ─────────────────────────────────────────────────────────────
 
 export function CaseOpeningGame() {
@@ -1836,7 +1617,7 @@ export function PlinkoGame() {
   );
 }
 
-// ── VÍDEO POKER ────────────────────────────────────────────────────────────────
+// ── VÍDEO POKER DEFINITIVO ────────────────────────────────────────────────────
 const HAND_LABELS = {
   'royal-flush':    { label: '🏆 Royal Flush',       color: '#f59e0b' },
   'straight-flush': { label: '🌟 Straight Flush',    color: '#8b5cf6' },
@@ -1849,6 +1630,7 @@ const HAND_LABELS = {
   'jacks-or-better':{ label: '👑 Par Alto',          color: '#6b7280' },
   'nothing':        { label: '❌ Sem Jogo',          color: '#ef4444' },
 };
+
 const PAYOUT_TABLE = [
   { hand: 'royal-flush',    payout: 800 },
   { hand: 'straight-flush', payout: 50  },
@@ -1858,7 +1640,7 @@ const PAYOUT_TABLE = [
   { hand: 'straight',       payout: 4   },
   { hand: 'three-of-a-kind',payout: 3   },
   { hand: 'two-pair',       payout: 2   },
-  { hand: 'jacks-or-better',payout: 1   },
+  { hand: 'jacks-or-better', payout: 1   },
 ];
  
 function PokerCard({ card, held, faceDown, onClick }) {
@@ -1882,7 +1664,7 @@ function PokerCard({ card, held, faceDown, onClick }) {
 }
  
 export function VideoPokerGame() {
-  const { refresh } = useGame();
+  const { user, refresh, updatePoints } = useGame();
   const [bet, setBet] = useState(50);
   const [phase, setPhase] = useState('bet'); // bet | hold | done
   const [hand, setHand] = useState([]);
@@ -1892,15 +1674,23 @@ export function VideoPokerGame() {
   const [loading, setLoading] = useState(false);
  
   const deal = async () => {
+    if (!user) return toast.error('Erro ao carregar dados do utilizador');
+    if (user.points < bet) return toast.error('Saldo insuficiente');
+
     setLoading(true);
     setResult(null);
     setHeld([]);
+
+    updatePoints(user.points - bet);
+
     try {
       const { data } = await api.post('/games/poker/deal', { betPoints: bet });
+      updatePoints(data.points);
       setHand(data.hand);
       setDeck(data.deck);
       setPhase('hold');
     } catch (err) {
+      refresh();
       toast.error(err.response?.data?.error || err.message);
     } finally {
       setLoading(false);
@@ -1914,15 +1704,31 @@ export function VideoPokerGame() {
  
   const draw = async () => {
     setLoading(true);
+
+    const delayPromise = new Promise(resolve => setTimeout(resolve, 400));
+    const apiPromise = api.post('/games/poker/hold', { hand, deck, held, betPoints: bet });
+
     try {
-      const { data } = await api.post('/games/poker/hold', { hand, deck, held, betPoints: bet });
+      const [_, apiResponse] = await Promise.all([delayPromise, apiPromise]);
+      const { data } = apiResponse;
+
       setHand(data.finalHand);
       setResult(data);
       setPhase('done');
-      refresh();
-      if (data.winPoints > 0) toast.success(`🃏 ${HAND_LABELS[data.handName]?.label}! +${formatPoints(data.winPoints)}`);
-      else toast.error('Sem jogo desta vez');
+
+      setTimeout(async () => {
+        updatePoints(data.points);
+        await refresh();
+
+        if (data.winPoints > 0) {
+          toast.success(`🃏 ${HAND_LABELS[data.handName]?.label}! +${formatPoints(data.winPoints)}`);
+        } else {
+          toast.error('Sem jogo desta vez');
+        }
+      }, 300);
+
     } catch (err) {
+      refresh();
       toast.error(err.response?.data?.error || err.message);
     } finally {
       setLoading(false);
@@ -1932,9 +1738,7 @@ export function VideoPokerGame() {
   return (
     <div className="max-w-5xl mx-auto">
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-5">
-        {/* Jogo principal */}
         <div className="space-y-4">
-          {/* Tabela de pagamentos */}
           <Card className="p-3">
             <div className="grid grid-cols-3 gap-1">
               {PAYOUT_TABLE.map(p => {
@@ -1952,7 +1756,6 @@ export function VideoPokerGame() {
           </Card>
  
           <Card>
-            {/* Mão de cartas */}
             <div className="flex justify-center gap-2 mb-5 mt-2" style={{ minHeight: '110px' }}>
               {phase === 'bet'
                 ? Array.from({ length: 5 }, (_, i) => <PokerCard key={i} card={null} faceDown held={false} />)
@@ -1999,7 +1802,6 @@ export function VideoPokerGame() {
           </Card>
         </div>
  
-        {/* Guia lateral de mãos */}
         <div>
           <Card className="sticky top-0">
             <h3 className="font-bold text-sm mb-3">📖 Guia de Mãos</h3>
