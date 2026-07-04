@@ -145,7 +145,7 @@ export function MinesGame() {
 // ── COINFLIP ─────────────────────────────────────────────────────────────────
 export function CoinflipGame() {
   // 🛠️ ADICIONADO: updatePoints injetado
-  const { refresh, updatePoints } = useGame();
+  const { user, refresh, updatePoints } = useGame();
   const [bet, setBet] = useState(50);
   const [choice, setChoice] = useState(null);
   const [flipping, setFlipping] = useState(false);
