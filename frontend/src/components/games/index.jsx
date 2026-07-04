@@ -517,8 +517,8 @@ function PlayingCard({ card, faceDown }) {
       animate={{ rotateY: 0, scale: 1 }}
       className={`w-14 h-20 rounded-lg flex items-center justify-center text-lg font-bold
         border shadow-card -ml-2 first:ml-0 flex-shrink-0
-        ${faceDown ? 'bg-gradient-to-br from-blue/40 to-purple/40 border-border2' :
-          card?.red ? 'bg-white text-red border-gray-200' : 'bg-white text-gray-900 border-gray-200'}`}
+        ${faceDown ? 'bg-gradient-to-br from-blue/40 to-purple/40 border-slate-700' :
+          card?.red ? 'bg-white text-red-600 border-gray-200' : 'bg-white text-gray-900 border-gray-200'}`}
     >
       {faceDown ? '' : card ? `${card.v}${card.s}` : ''}
     </motion.div>
@@ -534,8 +534,10 @@ export function BlackjackGame() {
   const [deck, setDeck] = useState([]);
   const [result, setResult] = useState(null);
   const [winPoints, setWinPoints] = useState(0);
+  const [gameMessage, setGameMessage] = useState(null); // Estado para mensagens embutidas
 
   const deal = async () => {
+    setGameMessage(null);
     try {
       const { data } = await api.post('/games/blackjack/deal', { betPoints: bet });
       setPlayerHand(data.playerHand);
@@ -543,8 +545,21 @@ export function BlackjackGame() {
       setDeck(data.deck);
       setPhase(data.isBlackjack ? 'done' : 'play');
       setResult(data.isBlackjack ? 'blackjack' : null);
-      if (data.isBlackjack) { toast.success('🃏 BLACKJACK!'); refresh(); }
-    } catch (err) { toast.error(err.response?.data?.error || err.message); }
+      
+      refresh(); // Sincroniza a dedução imediata da aposta na carteira
+
+      if (data.isBlackjack) {
+        setGameMessage({
+          type: 'win',
+          text: `🃏 NATURAL BLACKJACK! Recebeste +${formatPoints(bet * 2.5)} pts!`
+        });
+      }
+    } catch (err) {
+      setGameMessage({
+        type: 'error',
+        text: err.response?.data?.error || err.message || 'Erro ao iniciar jogo'
+      });
+    }
   };
 
   const action = async (act) => {
@@ -555,16 +570,36 @@ export function BlackjackGame() {
       setPlayerHand(data.playerHand);
       setDealerHand(data.dealerHand);
       setDeck(data.deck);
+      
       if (data.result) {
         setResult(data.result);
         setWinPoints(data.winPoints);
         setPhase('done');
-        if (data.winPoints > 0) toast.success(`🃏 ${data.result === 'blackjack' ? 'BLACKJACK!' : 'Vitória!'} +${formatPoints(data.winPoints)}`);
-        else if (data.result === 'push') toast.success('🤝 Empate!');
-        else toast.error('😢 Dealer ganhou');
-        refresh();
+        refresh(); // Atualiza a carteira com o prémio real adicionado
+
+        if (data.winPoints > 0) {
+          setGameMessage({
+            type: 'win',
+            text: `🎉 Ganhaste! Mão final vencedora com ${data.result === 'blackjack' ? 'Blackjack' : 'sucesso'}. Adicionados +${formatPoints(data.winPoints)} pts!`
+          });
+        } else if (data.result === 'push') {
+          setGameMessage({
+            type: 'draw',
+            text: `🤝 Empate (Push)! A tua aposta de ${formatPoints(bet)} pts foi devolvida.`
+          });
+        } else {
+          setGameMessage({
+            type: 'loss',
+            text: data.result === 'bust' ? '💥 BUST! Ultrapassaste os 21 pontos.' : '❌ O Dealer ganhou esta mão.'
+          });
+        }
       }
-    } catch (err) { toast.error(err.response?.data?.error || err.message); }
+    } catch (err) {
+      setGameMessage({
+        type: 'error',
+        text: err.response?.data?.error || err.message || 'Erro na jogada'
+      });
+    }
   };
 
   const handVal = (hand) => {
@@ -578,12 +613,19 @@ export function BlackjackGame() {
     return t;
   };
 
-  const reset = () => { setPhase('bet'); setPlayerHand([]); setDealerHand([]); setResult(null); setWinPoints(0); };
+  const reset = () => { 
+    setPhase('bet'); 
+    setPlayerHand([]); 
+    setDealerHand([]); 
+    setResult(null); 
+    setWinPoints(0); 
+    setGameMessage(null); 
+  };
 
   return (
-    <div className="max-w-xl mx-auto">
+    <div className="max-w-xl mx-auto space-y-4">
       {/* Table */}
-      <div className="rounded-xl p-6 mb-4 min-h-64 flex flex-col items-center gap-4 border border-border"
+      <div className="rounded-xl p-6 min-h-64 flex flex-col items-center gap-4 border border-slate-800"
         style={{ background: 'radial-gradient(ellipse at center, #1a4731, #0d2b1e)' }}>
         {phase !== 'bet' && (
           <>
@@ -607,35 +649,45 @@ export function BlackjackGame() {
           </>
         )}
         {phase === 'bet' && (
-          <div className="text-white/30 text-sm flex items-center gap-2">🃏 Configura e inicia</div>
-        )}
-        {result && (
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-            className={`px-5 py-2 rounded-full font-black text-base
-              ${result === 'win' || result === 'blackjack' ? 'bg-success/30 text-success' :
-                result === 'push' ? 'bg-orange/30 text-orange' : 'bg-red/30 text-red'}`}
-          >
-            {result === 'blackjack' ? '🃏 BLACKJACK!' :
-             result === 'win'       ? '🎉 Vitória!' :
-             result === 'push'      ? '🤝 Empate' :
-             result === 'bust'      ? '💥 Bust!' : '😢 Dealer ganhou'}
-          </motion.div>
+          <div className="text-white/30 text-sm flex items-center gap-2 my-auto select-none">🃏 Configura e inicia</div>
         )}
       </div>
 
-      <Card>
-        <Input label="💎 Aposta (pts)" type="number" min="1" step="1" value={bet}
-          onChange={e => setBet(+e.target.value)} disabled={phase === 'play'} />
+      <Card className="bg-[#0f141c] border border-slate-800 text-white space-y-4">
+        <Input 
+          label="💎 Aposta (pts)" 
+          type="number" 
+          min="1" 
+          step="1" 
+          value={bet}
+          onChange={e => setBet(+e.target.value)} 
+          disabled={phase === 'play'} 
+        />
+        
         <div className="flex gap-2 flex-wrap">
-          {phase === 'bet'  && <Button onClick={deal} className="flex-1">🃏 Distribuir</Button>}
-          {phase === 'play' && <>
-            <Button onClick={() => action('hit')} className="flex-1">Hit</Button>
-            <Button variant="secondary" onClick={() => action('stand')} className="flex-1">Stand</Button>
-            {playerHand.length === 2 && <Button variant="secondary" onClick={() => action('double')} className="flex-1">Double</Button>}
-          </>}
-          {phase === 'done' && <Button variant="secondary" onClick={reset} className="flex-1">🔄 Nova Mão</Button>}
+          {phase === 'bet'  && <Button onClick={deal} className="flex-1 font-bold">🃏 Distribuir</Button>}
+          {phase === 'play' && (
+            <>
+              <Button onClick={() => action('hit')} className="flex-1 font-bold bg-blue-600 hover:bg-blue-700">Hit</Button>
+              <Button onClick={() => action('stand')} className="flex-1 font-bold bg-amber-600 hover:bg-amber-700">Stand</Button>
+              {playerHand.length === 2 && (
+                <Button onClick={() => action('double')} className="flex-1 font-bold bg-purple-600 hover:bg-purple-700">Double</Button>
+              )}
+            </>
+          )}
+          {phase === 'done' && <Button onClick={reset} className="flex-1 font-bold bg-slate-700 hover:bg-slate-600">🔄 Nova Mão</Button>}
         </div>
+
+        {/* Mensagem Resultante Incorporada abaixo dos controlos */}
+        {gameMessage && (
+          <div className={`p-3 rounded-xl text-center text-sm font-bold border ${
+            gameMessage.type === 'win' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+            gameMessage.type === 'loss' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+            gameMessage.type === 'draw' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-slate-800/50 text-slate-400 border-slate-700'
+          }`}>
+            {gameMessage.text}
+          </div>
+        )}
       </Card>
     </div>
   );
@@ -1156,13 +1208,13 @@ export function DiceGame() {
   const [direction, setDirection] = useState('over');
   const [rolling, setRolling] = useState(false);
   const [result, setResult] = useState(null);
-  const [displayRoll, setDisplayRoll] = useState(50); // Para o efeito de embaralhar números
+  const [displayRoll, setDisplayRoll] = useState(50); 
+  const [gameMessage, setGameMessage] = useState(null); // Novo estado para mensagens embutidas
 
   const chance = direction === 'over' ? (100 - target) : (target - 1);
   const edge = 0.01;
   const multiplier = chance > 0 ? Math.floor((1 / (chance / 100)) * (1 - edge) * 100) / 100 : 0;
 
-  // Efeito visual de embaralhar números enquanto rola (Efeito clássico de casino)
   useEffect(() => {
     let interval;
     if (rolling) {
@@ -1176,24 +1228,35 @@ export function DiceGame() {
   const roll = async () => {
     setRolling(true);
     setResult(null);
+    setGameMessage(null); // Limpa mensagens anteriores
+    
     try {
       const { data } = await api.post('/games/dice', { betPoints: bet, target, direction });
       
-      // Pequeno delay intencional na animação para criar suspense
       setTimeout(() => {
         setResult(data);
         setDisplayRoll(data.roll);
-        refresh();
+        refresh(); // Atualiza a carteira que já deduziu a aposta e aplicou o prémio no backend
+        
         if (data.won) {
-          toast.success(`🎉 Ganhastes +${formatPoints(data.winPoints)}!`);
+          setGameMessage({
+            type: 'win',
+            text: `🎉 Ganhaste! O dado deu ${data.roll}. Recebeste +${formatPoints(data.winPoints)} pts!`
+          });
         } else {
-          toast.error('❌ Não foi desta vez!');
+          setGameMessage({
+            type: 'loss',
+            text: `❌ Não foi desta vez! O dado deu ${data.roll}.`
+          });
         }
         setRolling(false);
       }, 700);
 
     } catch (err) {
-      toast.error(err.response?.data?.error || err.message);
+      setGameMessage({
+        type: 'error',
+        text: err.response?.data?.error || err.message || 'Erro no processamento'
+      });
       setRolling(false);
     }
   };
@@ -1287,7 +1350,7 @@ export function DiceGame() {
               </motion.div>
             )}
 
-            {/* Input Range Invisível (Para clique/arrasto perfeito) */}
+            {/* Input Range Invisível */}
             <input 
               type="range" 
               min="2" 
@@ -1357,9 +1420,19 @@ export function DiceGame() {
         </div>
 
         {/* Botão de Disparo */}
-        <Button onClick={roll} loading={rolling} className="w-full py-3.5 text-sm font-bold uppercase tracking-wider">
+        <Button onClick={roll} loading={rolling} className="w-full py-3.5 text-sm font-bold uppercase tracking-wider mb-3">
           🎲 Lançar — {formatPoints(bet)}
         </Button>
+
+        {/* Mensagem do Resultado Embutida */}
+        {gameMessage && (
+          <div className={`p-3 rounded-xl text-center text-sm font-bold border ${
+            gameMessage.type === 'win' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+            gameMessage.type === 'loss' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-slate-800/50 text-slate-400 border-slate-700'
+          }`}>
+            {gameMessage.text}
+          </div>
+        )}
       </Card>
     </div>
   );
@@ -1367,7 +1440,7 @@ export function DiceGame() {
 
 // ── PLINKO ─────────────────────────────────────────────────────────────────────
 const PLINKO_MULTS = {
-  8:  [5.6, 2.1, 1.1, 1.0, 0.5, 1.0, 1.1, 2.1, 5.6],
+  8:   [5.6, 2.1, 1.1, 1.0, 0.5, 1.0, 1.1, 2.1, 5.6],
   12: [10, 3, 1.6, 1.4, 1.1, 1.0, 1.1, 1.4, 1.6, 3, 10],
   16: [16, 9, 2, 1.4, 1.4, 1.2, 1.1, 1.0, 1.1, 1.2, 1.4, 1.4, 2, 9, 16],
 };
@@ -1391,6 +1464,8 @@ export function PlinkoGame() {
   const [lastResult, setLastResult] = useState(null);
   // Animação visual de impacto nos multiplicadores
   const [activeBucket, setActiveBucket] = useState(null);
+  // Estado local para a mensagem de jogo embutida
+  const [gameMessage, setGameMessage] = useState(null);
 
   // Função matemática para gerar a rota realista da bola baseada no destino final (data.position)
   const generatePhysicsPath = (finalColumn, totalRows) => {
@@ -1398,7 +1473,6 @@ export function PlinkoGame() {
     const path = [];
     
     // Calcula o número total de desvios para a direita que a bola TEM de fazer
-    // Num triângulo Plinko, a coluna final é exatamente o número de desvios para a direita acumulados.
     let remainingRights = finalColumn;
 
     for (let r = 0; r < totalRows; r++) {
@@ -1434,7 +1508,6 @@ export function PlinkoGame() {
   };
 
   const dropBall = async () => {
-    // Geramos um ID único para cada bola para permitir múltiplos cliques sem interferência
     const ballId = Date.now() + Math.random();
     
     try {
@@ -1454,7 +1527,10 @@ export function PlinkoGame() {
       setBalls(prev => [...prev, newBall]);
 
     } catch (err) {
-      toast.error(err.response?.data?.error || err.message);
+      setGameMessage({
+        type: 'error',
+        text: err.response?.data?.error || err.message || 'Erro no processamento'
+      });
     }
   };
 
@@ -1463,10 +1539,17 @@ export function PlinkoGame() {
     setActiveBucket(ball.targetPosition);
     refresh();
 
-    if (ball.data.winPoints > 0) {
-      toast.success(`🎯 ${ball.data.multiplier}x! +${formatPoints(ball.data.winPoints)}`);
+    // Emite o feedback na caixa embutida com base na rentabilidade do multiplicador tirado
+    if (ball.data.multiplier >= 1) {
+      setGameMessage({
+        type: 'win',
+        text: `🎯 Ganhaste! A bola deu ${ball.data.multiplier}x. Recebeste +${formatPoints(ball.data.winPoints)} pts!`
+      });
     } else {
-      toast.error('Sem multiplicador desta vez');
+      setGameMessage({
+        type: 'loss',
+        text: `📉 Retorno parcial de ${ball.data.multiplier}x (${formatPoints(ball.data.winPoints)} pts).`
+      });
     }
 
     // Remove a bola do estado após o impacto e desliga o brilho do bucket após 200ms
@@ -1543,14 +1626,14 @@ export function PlinkoGame() {
         {/* Badge do Último Resultado */}
         {lastResult && (
           <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="mb-4 text-center">
-            <Badge color={lastResult.winPoints > 0 ? 'green' : 'red'}>
-              {lastResult.winPoints > 0 ? `📊 Último Ganho: ${lastResult.multiplier}x (+$ {formatPoints(lastResult.winPoints)})` : `❌ Último Resultado: ${lastResult.multiplier}x`}
+            <Badge color={lastResult.winPoints >= lastResult.betPoints ? 'green' : 'red'}>
+              {lastResult.winPoints >= lastResult.betPoints ? `📊 Último Ganho: ${lastResult.multiplier}x (+$ ${formatPoints(lastResult.winPoints)})` : `❌ Retorno Parcial: ${lastResult.multiplier}x`}
             </Badge>
           </motion.div>
         )}
 
         {/* Seleção de Linhas (Dinâmica) */}
-        <div className="flex gap-2 mb-4 bg-[#1a222f] p-1.5 rounded-xl border border-slate-800">
+        <div className="flex gap-2 mb-4 bg-[#1a2232] p-1.5 rounded-xl border border-slate-800">
           {[8, 12, 16].map(r => (
             <button 
               key={r} 
@@ -1573,13 +1656,13 @@ export function PlinkoGame() {
             min="1" 
             value={bet} 
             onChange={e => setBet(Math.max(1, +e.target.value))}
-            className="flex-1 bg-bg3 border border-border2 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none focus:border-orange" 
+            className="flex-1 bg-[#161d2a] border border-slate-800 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none focus:border-slate-600 font-medium" 
           />
           {[10, 50, 100, 500].map(v => (
             <button 
               key={v} 
               onClick={() => setBet(v)}
-              className="px-3 py-2 rounded-lg bg-bg4 border border-border text-xs font-semibold hover:border-orange text-slate-300 transition-colors"
+              className="px-3 py-2 rounded-lg bg-[#161d2a] border border-slate-800 text-xs font-semibold hover:border-slate-600 text-slate-300 transition-colors"
             >
               {v}
             </button>
@@ -1587,9 +1670,19 @@ export function PlinkoGame() {
         </div>
 
         {/* Botão de Disparo */}
-        <Button onClick={dropBall} className="w-full py-3.5 text-sm font-bold uppercase tracking-wider">
+        <Button onClick={dropBall} className="w-full py-3.5 text-sm font-bold uppercase tracking-wider mb-3">
           🟢 Soltar Bola — {formatPoints(bet)}
         </Button>
+
+        {/* Mensagem do Resultado Embutida por baixo do Botão */}
+        {gameMessage && (
+          <div className={`p-3 rounded-xl text-center text-sm font-bold border ${
+            gameMessage.type === 'win' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+            gameMessage.type === 'loss' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-slate-800/50 text-slate-400 border-slate-700'
+          }`}>
+            {gameMessage.text}
+          </div>
+        )}
       </Card>
     </div>
   );
