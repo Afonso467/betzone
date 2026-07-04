@@ -821,6 +821,39 @@ export function CaseOpeningGame() {
           </Card>
         </>
       )}
+       <AnimatePresence>
+        {result && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <Card className="text-center" style={{ border: `2px solid ${(RARITY_COLORS[result.rarity] || '#9ca3af')}55` }}>
+              <div className="text-5xl mb-2">{result.emoji || '🔫'}</div>
+              <div className="font-bold text-lg" style={{ color: RARITY_COLORS[result.rarity] }}>{result.name}</div>
+              <Badge color="gray" className="mt-2">{result.rarity}</Badge>
+              <div className="mt-3 inline-flex items-center gap-1.5 bg-blue/10 text-blue px-3 py-1 rounded-full text-sm font-bold">
+                💎 +{result.points_value} pontos
+              </div>
+              <p className="text-text2 text-xs mt-2">Item visual adicionado ao inventário</p>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Tabela de probabilidades + pontos da caixa selecionada */}
+      {selectedCase?.items?.length > 0 && (
+        <Card className="mt-4">
+          <h3 className="font-bold mb-3 text-sm">📊 Itens desta caixa</h3>
+          {selectedCase.items.map(item => (
+            <div key={item.id} className="flex items-center gap-2 py-1.5 border-b border-border last:border-0">
+              <span className="text-base flex-shrink-0">{item.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold truncate" style={{ color: RARITY_COLORS[item.rarity] }}>{item.name}</div>
+                <div className="text-[10px] text-text3">{item.rarity}</div>
+              </div>
+              <span className="text-xs text-blue font-semibold">+{item.points_value} pts</span>
+              <span className="text-xs text-text2 w-14 text-right">{parseFloat(item.chance).toFixed(3)}%</span>
+            </div>
+          ))}
+        </Card>
+      )}
     </div>
   );
 }
