@@ -68,37 +68,7 @@ export default function Leaderboard() {
         </Card>
       ) : (
         <>
-          {/* Top 3 podium — Preenchido com o design do pódio */}
-          {players.length >= 3 && (
-            <div className="grid grid-cols-3 gap-3 mb-5 items-end pt-4">
-              {[players[1], players[0], players[2]].map((p, i) => {
-                // Índices mapeados devido à ordem do pódio [2º, 1º, 3º]
-                const actualRank = i === 0 ? 2 : i === 1 ? 1 : 3;
-                const heights = ['h-28', 'h-36', 'h-24'];
-                const borderColors = ['border-gray-500/30', 'border-yellow-500/40', 'border-orange-800/30'];
-
-                return (
-                  <motion.div 
-                    key={`podium-${p.username}-${i}`} 
-                    className="w-full min-w-0"
-                    initial={{ opacity: 0, y: 20 }} 
-                    animate={{ opacity: 1, y: 0 }} 
-                    transition={{ delay: i * 0.1 }}
-                  >
-                    <div className={`bg-bg2 border ${borderColors[i]} rounded-[12px] flex flex-col items-center justify-center p-3 text-center ${heights[i]}`}>
-                      <RankBadge rank={actualRank} />
-                      <div className="mt-2 mb-1">
-                        <SafeAvatar avatar={p.avatar} username={p.username} />
-                      </div>
-                      <span className="text-xs font-bold truncate w-full">{p.username}</span>
-                      <span className="text-[11px] text-orange font-extrabold">{formatNumber(p.points)} pts</span>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          )}
-
+       
           {/* Full list */}
           <Card className="p-0 overflow-hidden">
             {players.map((p, i) => {
