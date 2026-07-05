@@ -38,20 +38,6 @@ export default function Navbar() {
         {formatNumber(user.points)} pts
       </div>
 
-      {/* Refresh */}
-      <button onClick={handleRefresh}
-        className="w-9 h-9 bg-bg3 border border-border rounded-[10px] flex items-center justify-center text-text2 hover:text-orange hover:border-orange transition-colors">
-        <motion.div animate={refreshing ? { rotate: 360 } : {}} transition={{ duration: 0.6 }}>
-          <RefreshCw size={15} />
-        </motion.div>
-      </button>
-
-      {/* Notifications */}
-      <button className="w-9 h-9 bg-bg3 border border-border rounded-[10px] flex items-center justify-center text-text2 hover:text-white transition-colors relative">
-        <Bell size={16} />
-        <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center text-white border-2 border-bg2">3</span>
-      </button>
-
       {/* User */}
       <button onClick={() => navigate('/profile')}
         className="flex items-center gap-2.5 px-3 py-1.5 rounded-[10px] hover:bg-bg3 transition-colors">
