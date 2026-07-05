@@ -1,5 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/layout/Layout';
 
@@ -20,13 +19,6 @@ import Admin       from '../pages/Admin';
 import { MinesPage, CoinflipPage, CrashPage, BlackjackPage, CasesPage, RoulettePage, DicePage, PlinkoPage, VideoPokerPage, SlotsPage } from '../pages/GamePages';
 import { Parcerias, Sobre } from '../pages/StaticPages';
 
-// Impede o scroll automático para o topo ao navegar entre páginas
-function ScrollToTop() {
-  const { pathname } = useLocation();
-  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
-  return null;
-}
-
 // Bloqueia o acesso a rotas privadas se não houver sessão ativa
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -43,9 +35,7 @@ function PublicOnlyRoute({ children }) {
 
 export default function AppRouter() {
   return (
-    <>
-      <ScrollToTop />
-      <Routes>
+    <Routes>
         <Route path="/login"    element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
         <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
 
@@ -74,6 +64,5 @@ export default function AppRouter() {
           <Route path="*"         element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
-    </>
   );
 }
