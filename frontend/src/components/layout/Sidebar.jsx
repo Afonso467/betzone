@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
 import {
   LayoutDashboard, User, Gift,
   Trophy, Gamepad2, Dices, Package, CircleDollarSign,
@@ -8,11 +9,11 @@ import {
 } from 'lucide-react';
 
 const MAIN_ITEMS = [
-  { icon: LayoutDashboard, label: 'Dashboard',    path: '/' },
-  { icon: User,            label: 'Meu Perfil',   path: '/profile' },
-  { icon: Briefcase,       label: 'Inventário',   path: '/inventory' }, // Adicionado aqui
-  { icon: Gift,            label: 'Giveaways',    path: '/giveaways' },
-  { icon: Trophy,          label: 'Classificação',path: '/leaderboard' },
+  { icon: LayoutDashboard, label: 'Dashboard',     path: '/' },
+  { icon: User,            label: 'Meu Perfil',    path: '/profile' },
+  { icon: Briefcase,       label: 'Inventário',    path: '/inventory' },
+  { icon: Gift,            label: 'Giveaways',     path: '/giveaways' },
+  { icon: Trophy,          label: 'Classificação', path: '/leaderboard' },
 ];
 
 const GAME_ITEMS = [
@@ -33,6 +34,22 @@ const GAME_ITEMS = [
 export default function Sidebar({ collapsed, onToggle }) {
   const navigate  = useNavigate();
   const location  = useLocation();
+  const navRef    = useRef(null);
+
+  // 🔄 Restaura a posição do scroll guardada assim que o componente monta ou muda de rota
+  useEffect(() => {
+    const savedScroll = localStorage.getItem('sidebar-scroll-pos');
+    if (savedScroll && navRef.current) {
+      navRef.current.scrollTop = parseInt(savedScroll, 10);
+    }
+  }, [location.pathname]);
+
+  // 💾 Guarda a posição do scroll a cada movimento do utilizador
+  const handleScroll = () => {
+    if (navRef.current) {
+      localStorage.setItem('sidebar-scroll-pos', navRef.current.scrollTop);
+    }
+  };
 
   const NavItem = ({ icon: Icon, label, path, href }) => {
     const active = path && location.pathname === path;
@@ -111,7 +128,12 @@ export default function Sidebar({ collapsed, onToggle }) {
         {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
       </button>
 
-      <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2">
+      {/* 🛠️ Escuta o evento de scroll e injeta a referência */}
+      <nav 
+        ref={navRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto overflow-x-hidden py-2"
+      >
         {MAIN_ITEMS.map(item => <NavItem key={item.path} {...item} />)}
 
         <SectionLabel>Minigames</SectionLabel>
