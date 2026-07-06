@@ -11,6 +11,7 @@ import {
 const MAIN_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard',     path: '/' },
   { icon: User,            label: 'Meu Perfil',    path: '/profile' },
+  { icon: Briefcase,       label: 'Inventário',   path: '/inventory' },
   { icon: Briefcase,       label: 'Inventário',    path: '/inventory' },
   { icon: Gift,            label: 'Giveaways',     path: '/giveaways' },
   { icon: Trophy,          label: 'Classificação', path: '/leaderboard' },
