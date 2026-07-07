@@ -1259,209 +1259,251 @@ const roll = async () => {
 
 
 //---------Plinko------------
-// 🎯 CONFIGURAÇÃO RESTRITA: Apenas 5 baldes com prémio por modo de linhas.
-// O resto das posições converte-se em buraco (✕) automaticamente.
+// No teu ficheiro do BACKEND (ex: controllers/plinkoController.js ou routes/games.js)
+
 const HARDCORE_BUCKETS = {
-  // 8 linhas: 9 slots (0 a 8). Premiados apenas: as duas pontas (0, 8), os intermédios (2, 6) e o centro exato (4)
   8: { 0: 5, 2: 2, 4: 15, 6: 2, 8: 5 },
-  
-  // 12 linhas: 13 slots (0 a 12). Premiados apenas: as duas pontas (0, 12), os intermédios (3, 9) e o centro exato (6)
   12: { 0: 8, 3: 3, 6: 25, 9: 3, 12: 8 },
-  
-  // 16 linhas: 17 slots (0 a 16). Premiados apenas: as duas pontas (0, 16), os intermédios (4, 12) e o centro exato (8)
   16: { 0: 10, 4: 5, 8: 50, 12: 5, 16: 10 }
 };
 
-function multColor(m) {
-  if (m >= 25) return '#f59e0b'; // Jackpot Dourado para o centro
-  if (m >= 8)  return '#8b5cf6'; // Roxo para as pontas
-  if (m >= 2)  return '#3b82f6'; // Azul para os intermédios
-  return '#374151'; // Cor do buraco (perdeu)
+// Dentro da tua função que lida com o POST do Plinko:
+// const { betPoints, rows } = req.body;
+
+// 1. O teu algoritmo gera a posição final da bola (0 até 'rows')
+// Exemplo: const finalPosition = calcularPosicaoPlinko(rows);
+
+// 2. Procurar o multiplicador correto na nova tabela rigorosa
+const activeBuckets = HARDCORE_BUCKETS[rows] || HARDCORE_BUCKETS[16];
+const multiplier = activeBuckets[finalPosition] !== undefined ? activeBuckets[finalPosition] : 0; // Se não existir, é 0 (buraco)
+
+// 3. Calcular os ganhos reais
+const winPoints = Math.floor(betPoints * multiplier);
+
+// 4. Atualizar os pontos no Banco de Dados do Utilizador
+// user.points = user.points + winPoints; (lembrando que a aposta já deve ter sido deduzida)
+// await user.save();
+
+// 5. Responder ao Frontend com os valores exatos:
+/*
+res.json({
+  position: finalPosition,
+  multiplier: multiplier,
+  winPoints: winPoints,
+  points: user.points // Saldo final atualizado no banco
+});
+*/
+
+// ── BLACKJACK DEFINITIVO ──────────────────────────────────────────────────────
+function PlayingCard({ card, faceDown }) {
+  return (
+    <motion.div
+      initial={{ rotateY: 90, scale: 0.8 }}
+      animate={{ rotateY: 0, scale: 1 }}
+      transition={{ duration: 0.3 }}
+      className={`w-14 h-20 rounded-lg flex items-center justify-center text-lg font-bold
+        border shadow-card -ml-2 first:ml-0 flex-shrink-0
+        ${faceDown ? 'bg-gradient-to-br from-blue/40 to-purple/40 border-slate-700' :
+          card?.red ? 'bg-white text-red-600 border-gray-200' : 'bg-white text-gray-900 border-gray-200'}`}
+    >
+      {faceDown ? '' : card ? `${card.v}${card.s}` : ''}
+    </motion.div>
+  );
 }
 
-export function PlinkoGame() {
+export function BlackjackGame() {
   const { user, refresh, updatePoints } = useGame();
-  const [bet, setBet] = useState(50);
-  const [rows, setRows] = useState(16);
-  const [balls, setBalls] = useState([]);
-  const [lastResult, setLastResult] = useState(null);
-  const [activeBucket, setActiveBucket] = useState(null);
+  const [bet, setBet]   = useState(50);
+  const [phase, setPhase] = useState('bet'); // bet | play | done
+  const [playerHand, setPlayerHand] = useState([]);
+  const [dealerHand, setDealerHand] = useState([]);
+  const [deck, setDeck] = useState([]);
+  const [result, setResult] = useState(null);
+  const [winPoints, setWinPoints] = useState(0);
+  const [gameMessage, setGameMessage] = useState(null);
 
-  // Reconstrói dinamicamente os slots limpando o excesso de quadrados premiados antigos
-  const buildSlots = (r) => {
-    const total = r + 1;
-    const activeBucketsMap = HARDCORE_BUCKETS[r] || HARDCORE_BUCKETS[16];
-    
-    return Array.from({ length: total }, (_, i) => ({
-      pos: i,
-      mult: activeBucketsMap[i] ?? 0, // Se não estiver mapeado nos 5 baldes, vira 0 (Buraco)
-    }));
-  };
-
-  const slots = buildSlots(rows);
-
-  const generatePath = (finalPos, totalRows) => {
-    const path = [];
-    let col = 0;
-    let rem = finalPos;
-    for (let r = 0; r < totalRows; r++) {
-      const remaining = totalRows - r;
-      let goRight = rem >= remaining ? true : rem > 0 ? Math.random() > 0.5 : false;
-      if (goRight) { col++; rem--; }
-      const pegsInRow = r + 3;
-      const stepX = 4.5;
-      const xPct = 50 + (col - (pegsInRow - 1) / 2) * stepX;
-      const yPct = ((r + 1) / (totalRows + 1)) * 80;
-      path.push({ x: `${xPct}%`, y: `${yPct}%` });
-    }
-    const slotWidth = 100 / (rows + 1);
-    path.push({ x: `${finalPos * slotWidth + slotWidth / 2}%`, y: '92%' });
-    return path;
-  };
-
-  const dropBall = async () => {
+  const deal = async () => {
     if (!user) return toast.error('Erro ao carregar dados do utilizador');
     if (user.points < bet) return toast.error('Saldo insuficiente');
 
-    // 🔥 DEDUÇÃO IMEDIATA: Retira os pontos localmente no mesmo instante do clique
-    const currentPoints = user.points;
-    user.points = currentPoints - bet;
-    updatePoints(user.points);
+    updatePoints(user.points - bet);
+    setGameMessage(null);
+
+    const delayPromise = new Promise(resolve => setTimeout(resolve, 400));
+    const apiPromise = api.post('/games/blackjack/deal', { betPoints: bet });
 
     try {
-      const { data } = await api.post('/games/plinko', { betPoints: bet, rows });
-      const keyframes = generatePath(data.position, rows);
-      
-      setBalls(prev => [...prev, {
-        id: Date.now() + Math.random(),
-        keyframesX: keyframes.map(p => p.x),
-        keyframesY: keyframes.map(p => p.y),
-        targetPosition: data.position,
-        data,
-      }]);
+      const [_, apiResponse] = await Promise.all([delayPromise, apiPromise]);
+      const { data } = apiResponse;
+
+      setPlayerHand(data.playerHand);
+      setDealerHand(data.dealerHand);
+      setDeck(data.deck);
+      setPhase(data.isBlackjack ? 'done' : 'play');
+      setResult(data.isBlackjack ? 'blackjack' : null);
+
+      if (data.isBlackjack) {
+        setTimeout(async () => {
+          updatePoints(data.points);
+          await refresh();
+          setGameMessage({
+            type: 'win',
+            text: `🃏 NATURAL BLACKJACK! Recebeste +${formatPoints(bet * 2.5)} pts!`
+          });
+        }, 300);
+      } else {
+        updatePoints(data.points);
+      }
     } catch (err) {
-      // Reverte o saldo local caso a API falhe por timeout ou erro de rede
-      user.points = currentPoints;
-      updatePoints(currentPoints);
-      toast.error(err.response?.data?.error || err.message);
+      refresh();
+      setGameMessage({
+        type: 'error',
+        text: err.response?.data?.error || err.message || 'Erro ao iniciar jogo'
+      });
     }
   };
 
-  const handleBallComplete = (ball) => {
-    setLastResult(ball.data);
-    setActiveBucket(ball.targetPosition);
-    
-    // Alinha a carteira com a resposta exata de créditos calculada no teu Backend
-    updatePoints(ball.data.points);
-    refresh();
+  const action = async (act) => {
+    if (!user) return;
 
-    const mult = ball.data.multiplier;
-    if (mult > 0) {
-      toast.success(`🎯 PARABÉNS! Acertaste num Balde! ${mult}x (+${ball.data.winPoints} pts)`);
-    } else {
-      toast.error('😢 Caíste no buraco vazio! Tenta outra vez.');
+    if (act === 'double') {
+      if (user.points < bet) return toast.error('Saldo insuficiente para dobrar');
+      updatePoints(user.points - bet); 
     }
-    
-    setBalls(prev => prev.filter(b => b.id !== ball.id));
-    setTimeout(() => setActiveBucket(null), 1500);
+
+    const delayPromise = new Promise(resolve => setTimeout(resolve, 450));
+    const apiPromise = api.post('/games/blackjack/action', {
+      action: act, playerHand, dealerHand, deck, betPoints: bet,
+    });
+
+    try {
+      const [_, apiResponse] = await Promise.all([delayPromise, apiPromise]);
+      const { data } = apiResponse;
+
+      setPlayerHand(data.playerHand);
+      setDealerHand(data.dealerHand);
+      setDeck(data.deck);
+      
+      if (data.result) {
+        setTimeout(async () => {
+          setResult(data.result);
+          setWinPoints(data.winPoints);
+          setPhase('done');
+          
+          updatePoints(data.points);
+          await refresh();
+
+          if (data.winPoints > 0) {
+            setGameMessage({
+              type: 'win',
+              text: `🎉 Ganhaste! Mão vencedora com ${data.result === 'blackjack' ? 'Blackjack' : 'sucesso'}. Adicionados +${formatPoints(data.winPoints)} pts!`
+            });
+          } else if (data.result === 'push') {
+            setGameMessage({
+              type: 'draw',
+              text: `🤝 Empate (Push)! A tua aposta foi devolvida.`
+            });
+          } else {
+            setGameMessage({
+              type: 'loss',
+              text: data.result === 'bust' ? '💥 BUST! Ultrapassaste os 21 pontos.' : '❌ O Dealer ganhou esta mão.'
+            });
+          }
+        }, 300);
+      } else {
+        updatePoints(data.points);
+      }
+    } catch (err) {
+      refresh();
+      setGameMessage({
+        type: 'error',
+        text: err.response?.data?.error || err.message || 'Erro na jogada'
+      });
+    }
+  };
+
+  const handVal = (hand) => {
+    let t = hand.reduce((s, c) => {
+      if (['J','Q','K'].includes(c.v)) return s + 10;
+      if (c.v === 'A') return s + 11;
+      return s + parseInt(c.v);
+    }, 0);
+    let aces = hand.filter(c => c.v === 'A').length;
+    while (t > 21 && aces-- > 0) t -= 10;
+    return t;
+  };
+
+  const reset = () => { 
+    setPhase('bet'); 
+    setPlayerHand([]); 
+    setDealerHand([]); 
+    setResult(null); 
+    setWinPoints(0); 
+    setGameMessage(null); 
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
-      <Card className="bg-[#0f141c] border border-slate-800 text-white p-5 rounded-xl">
-        <div className="flex flex-col items-center justify-center mb-1">
-          <h3 className="font-black text-center text-xl text-white tracking-wider uppercase">🪂 Plinko Pro</h3>
-          <span className="text-[10px] text-amber-500 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 mt-1 uppercase tracking-widest">Modo 5 Baldes Ativo</span>
-        </div>
-
-        <div className="relative bg-[#0a0d14] border border-slate-900 rounded-xl p-4 mb-4 overflow-hidden shadow-inner"
-          style={{ height: '420px' }}>
-
-          {/* Pinos do Tabuleiro */}
-          <div className="flex flex-col justify-between h-[80%] mt-2 select-none">
-            {Array.from({ length: rows }, (_, r) => (
-              <div key={r} className="flex justify-center items-center" style={{ gap: `${26 - rows * 0.8}px` }}>
-                {Array.from({ length: r + 3 }, (_, c) => (
-                  <div key={c} className="w-1.5 h-1.5 rounded-full bg-slate-600 shadow-[0_0_2px_rgba(255,255,255,0.2)]" />
+    <div className="max-w-xl mx-auto space-y-4">
+      <div className="rounded-xl p-6 min-h-64 flex flex-col items-center gap-4 border border-slate-800"
+        style={{ background: 'radial-gradient(ellipse at center, #1a4731, #0d2b1e)' }}>
+        {phase !== 'bet' && (
+          <>
+            <div className="w-full">
+              <p className="text-xs text-white/50 text-center mb-2">
+                DEALER {phase === 'done' ? `— ${handVal(dealerHand)}` : ''}
+              </p>
+              <div className="flex justify-center">
+                {dealerHand.map((c, i) => (
+                  <PlayingCard key={i} card={c} faceDown={i === 1 && phase === 'play'} />
                 ))}
               </div>
-            ))}
-          </div>
-
-          {/* Renderização de Múltiplas Bolas Animadas em Queda */}
-          {balls.map(ball => (
-            <motion.div key={ball.id}
-              className="absolute w-3 h-3 rounded-full bg-gradient-to-r from-red-500 to-amber-500 border border-white shadow-[0_0_10px_#ef4444] z-20"
-              initial={{ top: '2%', left: '50%', x: '-50%' }}
-              animate={{ left: ball.keyframesX, top: ball.keyframesY }}
-              transition={{ duration: rows * 0.11, ease: 'linear' }}
-              onAnimationComplete={() => handleBallComplete(ball)}
-            />
-          ))}
-
-          {/* Baldes de Multiplicadores e Buracos com visual limpo */}
-          <div className="absolute bottom-2 left-2 right-2 flex gap-1">
-            {slots.map(({ pos, mult }) => {
-              const isBucket = mult > 0;
-              const isActive = activeBucket === pos;
-              return (
-                <motion.div key={pos}
-                  animate={isActive ? { scale: 1.18, y: -2 } : { scale: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 12 }}
-                  className="flex-1 text-center py-2.5 rounded-md text-[10px] font-black transition-all select-none flex items-center justify-center min-h-[34px]"
-                  style={{
-                    background: isActive ? multColor(mult) : isBucket ? multColor(mult) + '22' : '#141a26',
-                    color: isActive ? '#000' : isBucket ? multColor(mult) : '#334155',
-                    border: `1px solid ${isBucket ? multColor(mult) + (isActive ? 'ff' : '66') : '#1e293b'}`,
-                    boxShadow: isActive ? `0 0 14px ${multColor(mult)}` : 'none',
-                  }}>
-                  {isBucket ? `${mult}x` : '✕'}
-                </motion.div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Feedback do último resultado */}
-        {lastResult && (
-          <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="mb-3 text-center">
-            <Badge color={lastResult.multiplier > 0 ? 'green' : 'red'} className="py-1 px-4 text-xs font-bold rounded-lg shadow">
-              {lastResult.multiplier > 0
-                ? `🎉 ENTRA NA CONTA: ${lastResult.multiplier}x → +${lastResult.winPoints} pts`
-                : '❌ BURACO VAZIO — Perdeste a tua aposta'}
-            </Badge>
-          </motion.div>
+            </div>
+            <div className="text-white/30 text-xs">• • •</div>
+            <div className="w-full">
+              <p className="text-xs text-white/50 text-center mb-2">JOGADOR — {handVal(playerHand)}</p>
+              <div className="flex justify-center">
+                {playerHand.map((c, i) => <PlayingCard key={i} card={c} />)}
+              </div>
+            </div>
+          </>
         )}
+        {phase === 'bet' && (
+          <div className="text-white/30 text-sm flex items-center gap-2 my-auto select-none">🃏 Configura e inicia</div>
+        )}
+      </div>
 
-        {/* Escolha de Linhas */}
-        <div className="flex gap-2 mb-3 bg-[#161d2a] p-1.5 rounded-xl border border-slate-900">
-          {[8, 12, 16].map(r => (
-            <button key={r} disabled={balls.length > 0} onClick={() => setRows(r)}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all border uppercase tracking-wider
-                ${rows === r ? 'bg-orange text-black border-orange' : 'bg-transparent text-slate-400 border-transparent hover:text-white disabled:opacity-30'}`}>
-              {r} linhas
-            </button>
-          ))}
+      <Card className="bg-[#0f141c] border border-slate-800 text-white space-y-4">
+        <Input 
+          label="💎 Aposta (pts)" 
+          type="number" 
+          min="1" 
+          step="1" 
+          value={bet}
+          onChange={e => setBet(+e.target.value)} 
+          disabled={phase === 'play'} 
+        />
+        
+        <div className="flex gap-2 flex-wrap">
+          {phase === 'bet'  && <Button onClick={deal} className="flex-1 font-bold">🃏 Distribuir</Button>}
+          {phase === 'play' && (
+            <>
+              <Button onClick={() => action('hit')} className="flex-1 font-bold bg-blue-600 hover:bg-blue-700">Hit</Button>
+              <Button onClick={() => action('stand')} className="flex-1 font-bold bg-amber-600 hover:bg-amber-700">Stand</Button>
+              <Button onClick={() => action('double')} className="flex-1 font-bold bg-purple-600 hover:bg-purple-700">Double</Button>
+            </>
+          )}
+          {phase === 'done' && <Button onClick={reset} className="flex-1 font-bold bg-slate-700 hover:bg-slate-600">🔄 Nova Mão</Button>}
         </div>
 
-        {/* Input de Quantia */}
-        <div className="flex gap-2 mb-4 bg-[#0a0d14] p-1.5 rounded-xl border border-slate-950">
-          <input type="number" min="1" value={bet} disabled={balls.length > 0}
-            onChange={e => setBet(Math.max(1, +e.target.value))}
-            className="w-28 bg-[#161d2a] border border-slate-800 text-white rounded-lg px-3 py-2 text-sm focus:outline-none font-bold text-center disabled:opacity-50" />
-          <div className="flex gap-1 flex-1">
-            {[10, 50, 100, 500].map(v => (
-              <button key={v} disabled={balls.length > 0} onClick={() => setBet(v)}
-                className="flex-1 py-2 rounded-lg bg-[#161d2a] border border-slate-800 text-xs font-semibold hover:border-slate-600 text-slate-300 transition-colors disabled:opacity-40">
-                {v}
-              </button>
-            ))}
+        {gameMessage && (
+          <div className={`p-3 rounded-xl text-center text-sm font-bold border ${
+            gameMessage.type === 'win' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+            gameMessage.type === 'loss' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+            gameMessage.type === 'draw' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-slate-800/50 text-slate-400 border-slate-700'
+          }`}>
+            {gameMessage.text}
           </div>
-        </div>
-
-        <Button onClick={dropBall} className="w-full py-4 font-black uppercase tracking-widest text-sm shadow-md active:scale-[0.99] transition-transform">
-          🪂 Soltar Bola — {bet} pts
-        </Button>
+        )}
       </Card>
     </div>
   );
