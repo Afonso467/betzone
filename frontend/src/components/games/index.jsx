@@ -1258,246 +1258,302 @@ const roll = async () => {
 }
 
 // ── PLINKO ─────────────────────────────────────────────────────────────────────
-const PLINKO_MULTS = {
-  8:   [5.6, 2.1, 1.1, 1.0, 0.5, 1.0, 1.1, 2.1, 5.6],
-  12: [10, 3, 1.6, 1.4, 1.1, 1.0, 1.1, 1.4, 1.6, 3, 10],
-  16: [16, 9, 2, 1.4, 1.4, 1.2, 1.1, 1.0, 1.1, 1.2, 1.4, 1.4, 2, 9, 16],
+// Baldes com prémio por número de linhas — posições fixas no tabuleiro.
+// Todas as outras posições são "buraco" (perde a aposta).
+const PLINKO_BUCKETS = {
+  8:  { 2: 10, 4: 4, 6: 2, 8: 0, 10: 0, 12: 2, 14: 4, 16: 10 },   // 8 linhas: posições pares
+  12: { 1: 15, 4: 5, 7: 2, 10: 0, 13: 0, 16: 0, 19: 2, 22: 5, 25: 15 },
+  16: { 2: 15, 5: 5, 8: 2, 11: 0, 14: 0, 3: 0, 6: 0, 9: 0, 12: 0 }, // override abaixo
 };
-
+ 
+// Para 16 linhas: 17 posições (0-16), baldes em 2, 5, 8, 11, 14
+const BUCKET_MULTS_16 = { 2: 15, 5: 5, 8: 2, 11: 5, 14: 15 };
+ 
 function multColor(m) {
   if (m >= 10) return '#f59e0b';
-  if (m >= 3)  return '#8b5cf6';
-  if (m >= 1.5) return '#3b82f6';
-  if (m >= 1)  return '#10b981';
-  return '#6b7280';
+  if (m >= 4)  return '#8b5cf6';
+  if (m >= 2)  return '#3b82f6';
+  if (m > 0)   return '#10b981';
+  return '#374151'; // buraco
 }
-
+ 
 export function PlinkoGame() {
-  // 🛠️ ADICIONADO: updatePoints injetado
-  const { refresh, updatePoints } = useGame();
+  const { refresh } = useGame();
   const [bet, setBet] = useState(50);
   const [rows, setRows] = useState(16);
   const [balls, setBalls] = useState([]);
   const [lastResult, setLastResult] = useState(null);
   const [activeBucket, setActiveBucket] = useState(null);
-  const [gameMessage, setGameMessage] = useState(null);
-
-  const generatePhysicsPath = (finalColumn, totalRows) => {
-    let currentColumn = 0;
+ 
+  // Constrói o array de posições: 17 slots para 16 linhas, só 5 têm prémio
+  const buildSlots = (r) => {
+    const total = r + 1;
+    const buckets = r === 16 ? BUCKET_MULTS_16
+      : r === 12 ? { 1: 15, 3: 5, 6: 2, 9: 2, 11: 5, 13: 15 }
+      : { 0: 15, 2: 5, 4: 2, 6: 5, 8: 15 };
+    return Array.from({ length: total }, (_, i) => ({
+      pos: i,
+      mult: buckets[i] ?? 0, // 0 = buraco
+    }));
+  };
+ 
+  const slots = buildSlots(rows);
+ 
+  const generatePath = (finalPos, totalRows) => {
     const path = [];
-    let remainingRights = finalColumn;
-
+    let col = 0;
+    let rem = finalPos;
     for (let r = 0; r < totalRows; r++) {
-      const remainingRows = totalRows - r;
-      let goRight = false;
-
-      if (remainingRights >= remainingRows) {
-        goRight = true;
-      } else if (remainingRights > 0) {
-        goRight = Math.random() > 0.5;
-      }
-
-      if (goRight) {
-        currentColumn++;
-        remainingRights--;
-      }
-
-      const totalPegsInRow = r + 3; 
-      const centerXOffset = 50; 
-      const stepX = 4.5; 
-      const xPercent = centerXOffset + (currentColumn - (totalPegsInRow - 1) / 2) * stepX;
-      const yPercent = ((r + 1) / (totalRows + 1)) * 82;
-
-      path.push({ x: `${xPercent}%`, y: `${yPercent}%` });
+      const remaining = totalRows - r;
+      let goRight = rem >= remaining ? true : rem > 0 ? Math.random() > 0.5 : false;
+      if (goRight) { col++; rem--; }
+      const pegsInRow = r + 3;
+      const stepX = 4.5;
+      const xPct = 50 + (col - (pegsInRow - 1) / 2) * stepX;
+      const yPct = ((r + 1) / (totalRows + 1)) * 80;
+      path.push({ x: `${xPct}%`, y: `${yPct}%` });
     }
-
-    const finalX = (finalColumn / finalColumn === 0 ? 0 : (finalColumn / totalRows) * 90) + (5 + (16 - totalRows) * 0.3);
-    path.push({ x: `${finalX}%`, y: '96%' });
-
+    // posição final no balde
+    const slotWidth = 100 / (rows + 1);
+    path.push({ x: `${finalPos * slotWidth + slotWidth / 2}%`, y: '92%' });
     return path;
   };
-
+ 
   const dropBall = async () => {
-    const ballId = Date.now() + Math.random();
-    
     try {
       const { data } = await api.post('/games/plinko', { betPoints: bet, rows });
-      
-      // 🔥 ATUALIZAÇÃO IMEDIATA:
-      // Remove o custo da moeda no momento em que a bola cai no topo do ecrã
-      updatePoints(data.points);
-
-      const keyframes = generatePhysicsPath(data.position, rows);
-      
-      const newBall = {
-        id: ballId,
+      const keyframes = generatePath(data.position, rows);
+      setBalls(prev => [...prev, {
+        id: Date.now() + Math.random(),
         keyframesX: keyframes.map(p => p.x),
         keyframesY: keyframes.map(p => p.y),
         targetPosition: data.position,
-        data: data
-      };
-
-      setBalls(prev => [...prev, newBall]);
-
+        data,
+      }]);
     } catch (err) {
-      setGameMessage({
-        type: 'error',
-        text: err.response?.data?.error || err.message || 'Erro no processamento'
-      });
+      toast.error(err.response?.data?.error || err.message);
     }
   };
-
+ 
   const handleBallComplete = (ball) => {
     setLastResult(ball.data);
     setActiveBucket(ball.targetPosition);
-    
-    // 🔥 ATUALIZAÇÃO RE-SINCRONIZADA: 
-    // Atualiza o saldo global com o prémio da bola que acabou de aterrar
-    updatePoints(ball.data.points);
     refresh();
-
-    if (ball.data.multiplier >= 1) {
-      setGameMessage({
-        type: 'win',
-        text: `🎯 Ganhaste! A bola caiu em ${ball.data.multiplier}x (+${formatPoints(ball.data.winPoints)} pts)!`
-      });
-    } else {
-      setGameMessage({
-        type: 'loss',
-        text: `😢 Quase! A bola caiu em ${ball.data.multiplier}x.`
-      });
-    }
-
-    // Limpa a bola terminada da fila gráfica do DOM
+    const mult = ball.data.multiplier;
+    if (mult > 0) toast.success(`🎯 ${mult}x! +${formatPoints(ball.data.winPoints)}`);
+    else toast.error('😢 Buraco! Tenta de novo.');
     setBalls(prev => prev.filter(b => b.id !== ball.id));
+    setTimeout(() => setActiveBucket(null), 1500);
   };
-
-  const mults = PLINKO_MULTS[rows] || PLINKO_MULTS[16];
-
+ 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <Card>
-        <h3 className="font-bold mb-2 text-center text-lg tracking-wide text-white">🪂 Plinko Premium</h3>
-
-        {/* Tabuleiro Dinâmico */}
-        <div className="relative bg-[#0f141c] border border-slate-800 rounded-xl p-4 mb-4 overflow-hidden shadow-inner flex flex-col justify-between" style={{ height: '420px' }}>
-          
-          {/* Matriz Real de Pinos Dinâmicos baseada no número de linhas selecionado */}
-          <div className="flex flex-col justify-between h-[82%] mt-4 select-none">
+        <h3 className="font-bold mb-2 text-center text-lg text-white">🪂 Plinko</h3>
+ 
+        <div className="relative bg-[#0f141c] border border-slate-800 rounded-xl p-4 mb-4 overflow-hidden shadow-inner"
+          style={{ height: '420px' }}>
+ 
+          {/* Pinos */}
+          <div className="flex flex-col justify-between h-[80%] mt-2 select-none">
             {Array.from({ length: rows }, (_, r) => (
               <div key={r} className="flex justify-center items-center" style={{ gap: `${26 - rows * 0.8}px` }}>
                 {Array.from({ length: r + 3 }, (_, c) => (
-                  <div 
-                    key={c} 
-                    className="w-2 h-2 rounded-full bg-slate-400 shadow-[0_0_4px_rgba(255,255,255,0.6)] border border-slate-600 transition-all duration-300" 
-                  />
+                  <div key={c} className="w-2 h-2 rounded-full bg-slate-400 shadow-[0_0_4px_rgba(255,255,255,0.6)] border border-slate-600" />
                 ))}
               </div>
             ))}
           </div>
-
-          {/* Renderização em Tempo Real de Múltiplas Bolas */}
-          {balls.map((ball) => (
-            <motion.div
-              key={ball.id}
+ 
+          {/* Bolas */}
+          {balls.map(ball => (
+            <motion.div key={ball.id}
               className="absolute w-3.5 h-3.5 rounded-full bg-red-500 border border-white shadow-[0_0_8px_#ef4444] z-20"
-              initial={{ top: '2%', left: '50%', x: '-50%', y: 0 }}
-              animate={{
-                left: ball.keyframesX,
-                top: ball.keyframesY,
-              }}
-              transition={{
-                duration: rows * 0.11, // Velocidade fluida proporcional à altura do tabuleiro
-                ease: 'linear',
-              }}
+              initial={{ top: '2%', left: '50%', x: '-50%' }}
+              animate={{ left: ball.keyframesX, top: ball.keyframesY }}
+              transition={{ duration: rows * 0.11, ease: 'linear' }}
               onAnimationComplete={() => handleBallComplete(ball)}
             />
           ))}
-
-          {/* Contentores de Multiplicadores na Base */}
-          <div className="flex gap-[3px] w-full mt-auto z-10 px-1">
-            {mults.map((m, i) => {
-              const isActive = activeBucket === i;
+ 
+          {/* Slots — baldes e buracos */}
+          <div className="absolute bottom-2 left-2 right-2 flex gap-1">
+            {slots.map(({ pos, mult }) => {
+              const isBucket = mult > 0;
+              const isActive = activeBucket === pos;
               return (
-                <motion.div 
-                  key={i}
-                  animate={isActive ? { scale: 1.25, zIndex: 30 } : { scale: 1 }}
+                <motion.div key={pos}
+                  animate={isActive ? { scale: 1.2 } : { scale: 1 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 15 }}
-                  className="flex-1 text-center py-2.5 rounded-md text-[10px] font-black transition-all shadow-md select-none"
-                  style={{ 
-                    background: isActive ? multColor(m) : multColor(m) + '24', 
-                    color: isActive ? '#000' : multColor(m), 
-                    border: `1px solid ${multColor(m)}${isActive ? 'ff' : '66'}`,
-                    boxShadow: isActive ? `0 0 15px ${multColor(m)}` : 'none'
-                  }}
-                >
-                  {m < 10 ? m.toFixed(1) : Math.floor(m)}
+                  className="flex-1 text-center py-2 rounded-md text-[9px] font-black"
+                  style={{
+                    background: isActive ? multColor(mult) : isBucket ? multColor(mult) + '22' : '#1e293b',
+                    color: isActive ? '#000' : isBucket ? multColor(mult) : '#475569',
+                    border: `1px solid ${isBucket ? multColor(mult) + (isActive ? 'ff' : '55') : '#334155'}`,
+                    boxShadow: isActive ? `0 0 12px ${multColor(mult)}` : 'none',
+                  }}>
+                  {isBucket ? `${mult}x` : '✕'}
                 </motion.div>
               );
             })}
           </div>
         </div>
-
-        {/* Badge do Último Resultado */}
+ 
+        {/* Último resultado */}
         {lastResult && (
-          <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="mb-4 text-center">
-            <Badge color={lastResult.winPoints >= lastResult.betPoints ? 'green' : 'red'}>
-              {lastResult.winPoints >= lastResult.betPoints ? `📊 Último Ganho: ${lastResult.multiplier}x (+$ ${formatPoints(lastResult.winPoints)})` : `❌ Retorno Parcial: ${lastResult.multiplier}x`}
+          <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="mb-3 text-center">
+            <Badge color={lastResult.multiplier > 0 ? 'green' : 'red'}>
+              {lastResult.multiplier > 0
+                ? `🎯 ${lastResult.multiplier}x → +${formatPoints(lastResult.winPoints)}`
+                : '✕ Buraco — sem prémio'}
             </Badge>
           </motion.div>
         )}
-
-        {/* Seleção de Linhas (Dinâmica) */}
-        <div className="flex gap-2 mb-4 bg-[#1a2232] p-1.5 rounded-xl border border-slate-800">
+ 
+        {/* Linhas */}
+        <div className="flex gap-2 mb-3 bg-[#1a2232] p-1.5 rounded-xl border border-slate-800">
           {[8, 12, 16].map(r => (
-            <button 
-              key={r} 
-              disabled={balls.length > 0} // Impede mudar de linhas se houver bolas em queda para não quebrar a física
-              onClick={() => setRows(r)}
+            <button key={r} disabled={balls.length > 0} onClick={() => setRows(r)}
               className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all
-                ${rows === r 
-                  ? 'bg-orange text-black border-orange shadow-md' 
-                  : 'bg-transparent text-slate-400 border-transparent hover:text-white disabled:opacity-30'}`}
-            >
-              {r} Linhas
+                ${rows === r ? 'bg-orange text-black border-orange' : 'bg-transparent text-slate-400 border-transparent hover:text-white disabled:opacity-30'}`}>
+              {r} linhas
             </button>
           ))}
         </div>
-
-        {/* Inputs de Valores de Aposta */}
-        <div className="flex gap-3 mb-4">
-          <input 
-            type="number" 
-            min="1" 
-            value={bet} 
+ 
+        {/* Aposta */}
+        <div className="flex gap-2 mb-3">
+          <input type="number" min="1" value={bet}
             onChange={e => setBet(Math.max(1, +e.target.value))}
-            className="flex-1 bg-[#161d2a] border border-slate-800 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none focus:border-slate-600 font-medium" 
-          />
+            className="flex-1 bg-[#161d2a] border border-slate-800 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none" />
           {[10, 50, 100, 500].map(v => (
-            <button 
-              key={v} 
-              onClick={() => setBet(v)}
-              className="px-3 py-2 rounded-lg bg-[#161d2a] border border-slate-800 text-xs font-semibold hover:border-slate-600 text-slate-300 transition-colors"
-            >
+            <button key={v} onClick={() => setBet(v)}
+              className="px-2.5 py-2 rounded-lg bg-[#161d2a] border border-slate-800 text-xs font-semibold hover:border-slate-600 text-slate-300 transition-colors">
               {v}
             </button>
           ))}
         </div>
-
-        {/* Botão de Disparo */}
-        <Button onClick={dropBall} className="w-full py-3.5 text-sm font-bold uppercase tracking-wider mb-3">
-          🟢 Soltar Bola — {formatPoints(bet)}
+ 
+        <Button onClick={dropBall} className="w-full py-3">
+          🪂 Soltar Bola — {formatPoints(bet)}
         </Button>
-
-        {/* Mensagem do Resultado Embutida por baixo do Botão */}
-        {gameMessage && (
-          <div className={`p-3 rounded-xl text-center text-sm font-bold border ${
-            gameMessage.type === 'win' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
-            gameMessage.type === 'loss' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-slate-800/50 text-slate-400 border-slate-700'
-          }`}>
-            {gameMessage.text}
+      </Card>
+    </div>
+  );
+}
+ 
+export function PlinkoGame() {
+  const { refresh } = useGame();
+  const [bet, setBet] = useState(50);
+  const [rows, setRows] = useState(16);
+  const [dropping, setDropping] = useState(false);
+  const [result, setResult] = useState(null);
+  const [ballPos, setBallPos] = useState(null); // coluna final animada
+ 
+  const drop = async () => {
+    setDropping(true);
+    setResult(null);
+    setBallPos(null);
+    try {
+      const { data } = await api.post('/games/plinko', { betPoints: bet, rows });
+      // Anima a bola caindo para a posição final
+      setTimeout(() => {
+        setBallPos(data.position);
+        setTimeout(() => {
+          setResult(data);
+          refresh();
+          if (data.winPoints > 0) toast.success(`🎯 ${data.multiplier}x! +${formatPoints(data.winPoints)}`);
+          else toast.error('Sem multiplicador desta vez');
+          setDropping(false);
+        }, 600);
+      }, 200);
+    } catch (err) {
+      setDropping(false);
+      toast.error(err.response?.data?.error || err.message);
+    }
+  };
+ 
+  const mults = PLINKO_MULTS[rows] || PLINKO_MULTS[16];
+ 
+  return (
+    <div className="max-w-2xl mx-auto space-y-4">
+      <Card>
+        <h3 className="font-bold mb-4 text-center">🪂 Plinko</h3>
+ 
+        {/* Tabuleiro visual */}
+        <div className="relative bg-bg4 rounded-card2 p-4 mb-4 overflow-hidden" style={{ minHeight: '220px' }}>
+          {/* Pinos */}
+          <div className="flex flex-col gap-2 items-center">
+            {Array.from({ length: Math.min(rows, 8) }, (_, r) => (
+              <div key={r} className="flex gap-3 justify-center">
+                {Array.from({ length: r + 2 }, (_, c) => (
+                  <div key={c} className="w-2 h-2 rounded-full bg-border2" />
+                ))}
+              </div>
+            ))}
           </div>
+ 
+          {/* Bola */}
+          <AnimatePresence>
+            {dropping && (
+              <motion.div
+                className="absolute text-xl"
+                initial={{ top: 0, left: '50%', x: '-50%' }}
+                animate={{ top: ballPos !== null ? '78%' : '40%', left: ballPos !== null ? `${(ballPos / (mults.length - 1)) * 90 + 5}%` : '50%' }}
+                transition={{ duration: 0.8, ease: 'easeIn' }}
+              >
+                ⚪
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+ 
+        {/* Multiplicadores */}
+        <div className="flex gap-1 mb-4 overflow-x-auto pb-1">
+          {mults.map((m, i) => (
+            <div key={i}
+              className={`flex-1 min-w-[36px] text-center py-2 rounded-lg text-xs font-bold transition-all
+                ${result && result.position === i ? 'scale-110 ring-2 ring-white' : ''}`}
+              style={{ background: multColor(m) + '33', color: multColor(m), border: `1px solid ${multColor(m)}55` }}>
+              {m}x
+            </div>
+          ))}
+        </div>
+ 
+        {result && !dropping && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4 text-center">
+            <Badge color={result.winPoints > 0 ? 'green' : 'red'}>
+              {result.winPoints > 0 ? `✅ ${result.multiplier}x → +${formatPoints(result.winPoints)}` : `❌ ${result.multiplier}x (sem ganho)`}
+            </Badge>
+          </motion.div>
         )}
+ 
+        {/* Controles */}
+        <div className="flex gap-2 mb-3">
+          {[8, 12, 16].map(r => (
+            <button key={r} disabled={dropping} onClick={() => setRows(r)}
+              className={`px-3 py-2 rounded-lg text-xs font-bold border transition-all
+                ${rows === r ? 'bg-orange text-black border-orange' : 'bg-bg4 text-text2 border-border2 hover:border-orange disabled:opacity-40'}`}>
+              {r} linhas
+            </button>
+          ))}
+        </div>
+ 
+        <div className="flex gap-3 mb-3">
+          <input type="number" min="1" value={bet} disabled={dropping}
+            onChange={e => setBet(Math.max(1, +e.target.value))}
+            className="flex-1 bg-bg3 border border-border2 text-white rounded-[10px] px-3 py-2 text-sm focus:outline-none focus:border-orange" />
+          {[10, 50, 100, 500].map(v => (
+            <button key={v} disabled={dropping} onClick={() => setBet(v)}
+              className="px-2.5 py-2 rounded-lg bg-bg4 border border-border text-xs font-semibold hover:border-orange transition-colors disabled:opacity-40">
+              {v}
+            </button>
+          ))}
+        </div>
+ 
+        <Button onClick={drop} loading={dropping} className="w-full py-3">
+          🪂 Soltar a Bola — {formatPoints(bet)}
+        </Button>
       </Card>
     </div>
   );
