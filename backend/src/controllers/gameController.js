@@ -604,7 +604,20 @@ const dice = asyncHandler(async (req, res) => {
   }
 });
 
-// ── PLINKO ────────────────────────────────────────────────────────────────────
+// ── PLINKO HARDCORE (APENAS 5 BALDES) ─────────────────────────────────────────
+
+// Tabela rigorosa sincronizada com o teu Frontend. Tudo o que não estiver aqui dá 0x (✕).
+const HARDCORE_BUCKETS = {
+  // 8 linhas: 9 slots (0 a 8). Premiados: pontas (0, 8), intermédios (2, 6) e centro (4)
+  8: { 0: 5, 2: 2, 4: 15, 6: 2, 8: 5 },
+  
+  // 12 linhas: 13 slots (0 a 12). Premiados: pontas (0, 12), intermédios (3, 9) e centro (6)
+  12: { 0: 8, 3: 3, 6: 25, 9: 3, 12: 8 },
+  
+  // 16 linhas: 17 slots (0 a 16). Premiados: pontas (0, 16), intermédios (4, 12) e centro (8)
+  16: { 0: 10, 4: 5, 8: 50, 12: 5, 16: 10 }
+};
+
 const plinko = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { betPoints, rows = 16 } = req.body;
@@ -628,9 +641,19 @@ const plinko = asyncHandler(async (req, res) => {
       description: `Plinko — ${betPoints} pts`,
     }, conn);
 
-    const { position, multiplier, path } = dropPlinko(Number(rows));
+    // 1. O dropPlinko continua a gerar o caminho físico e a posição final (0 até 'rows')
+    const plinkoResult = dropPlinko(Number(rows));
+    const position = plinkoResult.position;
+    const path = plinkoResult.path;
+
+    // 2. 🔥 AJUSTE CRUCIAL: Forçar o multiplicador com base nos 5 baldes novos!
+    const activeBucketsMap = HARDCORE_BUCKETS[Number(rows)] || HARDCORE_BUCKETS[16];
+    const multiplier = activeBucketsMap[position] !== undefined ? activeBucketsMap[position] : 0; // Se for cinzento, vira 0!
+
+    // 3. Calcular os pontos ganhos reais
     const winPoints = Math.round(betPoints * multiplier);
 
+    // Se o multiplicador for maior que zero (ou seja, caiu num dos 5 baldes válidos)
     if (winPoints > 0) {
       const current = await getUser(userId, conn);
       await UserModel.adjustPoints(userId, winPoints, conn);
@@ -647,16 +670,18 @@ const plinko = asyncHandler(async (req, res) => {
       await UserModel.incrementLosses(userId, conn);
     }
 
+    // Registar a partida com o resultado real
     await GameModel.createMatch({ 
       userId, gameType: 'plinko', 
       betAmount: betPoints, winAmount: winPoints, 
-      multiplier, result: multiplier >= 1 ? 'win' : 'loss', 
+      multiplier, result: multiplier > 0 ? 'win' : 'loss', // 'loss' para multiplicador 0
       meta: { rows, position, path } 
     }, conn);
 
     const finalUser = await getUser(userId, conn);
     await conn.commit(); 
 
+    // Envia de volta exatamente o multiplicador forçado a 0 e winPoints 0
     res.json({ position, multiplier, path, winPoints, points: finalUser.points });
   } catch (err) {
     await conn.rollback(); 
